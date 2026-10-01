@@ -1,6 +1,6 @@
 //
-//  MediaOrganizerApp.swift
-//  Regia
+//  RenamyApp.swift
+//  Renamy
 //
 //  Created by Gionnio.
 //
@@ -8,7 +8,7 @@
 import SwiftUI
 
 @main
-struct RegiaApp: App {
+struct RenamyApp: App {
     @State private var aboutWindow: NSWindow?
     @AppStorage("appTheme") private var appTheme: AppTheme = .system
 
@@ -19,7 +19,7 @@ struct RegiaApp: App {
         }
         .commands {
             CommandGroup(replacing: .appInfo) {
-                Button("About Regia") {
+                Button("About Renamy") {
                     openAboutWindow()
                 }
             }
@@ -74,7 +74,7 @@ struct AboutView: View {
                 .shadow(radius: 4)
 
             VStack(spacing: 5) {
-                Text("Regia")
+                Text("Renamy")
                     .font(.system(size: 26, weight: .bold))
                 
                 Text("Version \(appVersion) (\(buildNumber))")
@@ -97,7 +97,7 @@ struct AboutView: View {
                     .fontWeight(.medium)
             }
 
-            Link(destination: URL(string: "https://github.com/gionnio/Regia")!) {
+            Link(destination: URL(string: "https://github.com/gionnio/renamy")!) {
                 HStack(spacing: 6) {
                     if let _ = NSImage(named: "GitHubIcon") {
                         Image("GitHubIcon")
@@ -129,7 +129,7 @@ struct AboutView: View {
                     .font(.caption)
                     .fontWeight(.semibold)
                 
-                Text("Copyright © 2026")
+                Text("Copyright © 2026 Gionnio")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
