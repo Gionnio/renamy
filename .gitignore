@@ -19,3 +19,7 @@
 *.ipa
 *.dSYM.zip
 *.dSYM
+xcuserdata/
+build/
+dist/
+*.profraw
