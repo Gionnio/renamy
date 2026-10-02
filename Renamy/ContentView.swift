@@ -2,7 +2,7 @@
 //  ContentView.swift
 //  Renamy
 //
-//  Version: 2.0.0
+//  Version: 2.0.1
 //  Target: macOS 14.0+
 //
 
@@ -1222,17 +1222,21 @@ struct FileListView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // Stesse colonne e margini delle righe, così le intestazioni restano allineate al contenuto
             HStack {
+                Color.clear.frame(width: FileRowView.checkboxWidth, height: 1)
                 Text(vm.t("col_original")).frame(maxWidth: .infinity, alignment: .leading)
-                Text(vm.t("col_proposed")).frame(maxWidth: .infinity, alignment: .leading)
-                Text(vm.t("col_status")).frame(width: 140, alignment: .leading)
-            }.font(.headline).padding(.horizontal).padding(.top, 8)
+                // Allineato al testo dentro il campo, non al suo bordo
+                Text(vm.t("col_proposed")).padding(.leading, 6).frame(maxWidth: .infinity, alignment: .leading)
+                Text(vm.t("col_status")).frame(width: FileRowView.statusWidth, alignment: .leading)
+            }.font(.headline).padding(.horizontal, FileRowView.horizontalInset).padding(.vertical, 6)
             Divider()
             List(visibleFiles) { file in
                 FileRowView(file: file, onManualSearch: {
                     if file.status == .ambiguo { vm.promptDisambiguation(for: file) }
                     else { vm.prepareManualSearch(for: file) }
                 }).environmentObject(vm)
+                .listRowInsets(EdgeInsets(top: 0, leading: FileRowView.horizontalInset, bottom: 0, trailing: FileRowView.horizontalInset))
             }.listStyle(.plain)
         }
     }
@@ -1243,9 +1247,13 @@ struct FileRowView: View {
     @EnvironmentObject var vm: RenamyViewModel
     var onManualSearch: () -> Void
 
+    static let checkboxWidth: CGFloat = 30
+    static let statusWidth: CGFloat = 140
+    static let horizontalInset: CGFloat = 12
+
     var body: some View {
         HStack {
-            Toggle("", isOn: $file.isSelected).toggleStyle(.checkbox).frame(width: 30)
+            Toggle("", isOn: $file.isSelected).toggleStyle(.checkbox).labelsHidden().frame(width: Self.checkboxWidth, alignment: .leading)
             Text(file.originalName).font(.caption).lineLimit(2).foregroundColor(color(for: file.status)).frame(maxWidth: .infinity, alignment: .leading)
             TextField("...", text: $file.proposedName).textFieldStyle(.roundedBorder).frame(maxWidth: .infinity)
                 .disabled(file.status == .spostato)
@@ -1257,7 +1265,7 @@ struct FileRowView: View {
                 } else if file.status == .ambiguo {
                     Button(action: onManualSearch) { Image(systemName: "list.bullet.circle.fill").foregroundColor(.orange) }.buttonStyle(.plain)
                 }
-            }.frame(width: 140, alignment: .leading)
+            }.frame(width: Self.statusWidth, alignment: .leading)
         }
         .padding(.vertical, 4)
         // NEW: permette di correggere anche un file già abbinato (match sbagliato)
