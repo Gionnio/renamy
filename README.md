@@ -8,6 +8,8 @@
 
 **Renamy** is a native macOS application developed in SwiftUI designed to help users manage, organize, and rename their personal video library files efficiently using official metadata.
 
+<img width="1000" alt="Renamy Main Window" src="docs/main-window.png" />
+
 > Renamy was previously called **Regia**. Settings are not migrated: re-enter your TMDB API Key after updating.
 
 ## ✨ Features
@@ -22,6 +24,8 @@
 - **Undo Capability:** Safety feature to revert the last rename or move operation instantly, including the folders it created.
 - **Appearance:** System, Light and Dark themes.
 - **Multi-language:** Native support for Italian 🇮🇹 and English 🇬🇧.
+
+<img width="1000" alt="Renamy Settings" src="docs/settings.png" />
 
 ## 🚀 Requirements
 - macOS 14.6 (Sonoma) or later.
@@ -46,7 +50,7 @@ brew upgrade --cask renamy
 ## 📥 Manual Installation (Pre-built App)
 
 1. Go to the **[Releases](../../releases)** section of this page.
-2. Download the latest `.zip` file (e.g., `Renamy_v2.0.0.zip`).
+2. Download the latest `.zip` file (e.g., `Renamy_v2.0.1.zip`).
 3. Unzip the file and move `Renamy.app` to your **Applications** folder.
 
 ### ⚠️ Important: How to open the app
