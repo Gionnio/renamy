@@ -36,8 +36,16 @@
 ## 🍺 Installation via Homebrew (Recommended)
 
 ```bash
-brew install --cask gionnio/renamy/renamy
+brew install --cask gionnio/tap/renamy
 ```
+
+Renamy is part of [Gionnio's Homebrew tap](https://github.com/Gionnio/homebrew-tap), together with my other apps.
+
+> Installed it from the old `gionnio/renamy` tap? Switch to the new one:
+> ```bash
+> brew uninstall --cask renamy && brew untap gionnio/renamy
+> brew install --cask gionnio/tap/renamy
+> ```
 
 ### 🔄 Updating
 
@@ -78,7 +86,7 @@ If macOS still refuses to open it, go to **System Settings → Privacy & Securit
 
 * [ ] **System Notifications:** Native macOS notifications when long processing tasks are finished.
 * [ ] **Custom Renaming Format:** A custom pattern editor (e.g., `{title} - [{year}]`) beyond the built-in presets.
-* [x] **Homebrew Support:** Install and update via `brew install --cask gionnio/renamy/renamy`.
+* [x] **Homebrew Support:** Install and update via `brew install --cask gionnio/tap/renamy`.
 
 ## Privacy & Security
 
