@@ -67,13 +67,11 @@ Since this is an open-source project and not signed with a paid Apple Developer 
 
 **To open it:**
 
-1. **Right-click** (or Control+Click) on the `Renamy` icon.
-2. Select **Open** from the context menu.
-3. Click **Open** in the dialog box that appears.
+1. Open `Renamy` once and close the warning.
+2. Go to **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to the Renamy message.
+3. Confirm with **Open**.
 
-If macOS still refuses to open it, go to **System Settings → Privacy & Security** and click **Open Anyway**.
-
-*You only need to do this once. Subsequent launches will work normally.*
+*Right-click → Open no longer works on macOS 15 (Sequoia) and later. You only need to do this once.*
 
 ## 🛠 Build from Source
 
