@@ -8,6 +8,8 @@
 
 **Renamy** is a native macOS application developed in SwiftUI designed to help users manage, organize, and rename their personal video library files efficiently using official metadata.
 
+<p align="center"><img src="docs/icon.png" width="160" alt="Renamy icon"></p>
+
 <img width="1000" alt="Renamy Main Window" src="docs/main-window.png" />
 
 > Renamy was previously called **Regia**. Settings are not migrated: re-enter your TMDB API Key after updating.
