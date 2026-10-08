@@ -1280,19 +1280,26 @@ private struct LanguagePicker: View {
         return (domain["AppleLanguages"] as? [String])?.first.map { String($0.prefix(2)) } ?? ""
     }
 
-    /// Riapre Renamy solo quando questa istanza è davvero chiusa, così non ne restano due aperte
+    /// Chiude Renamy e lo riapre quando è davvero chiuso, così non ne restano due aperti.
+    /// La riapertura parte solo se la chiusura va a buon fine.
     static func relaunch() {
-        let pid = ProcessInfo.processInfo.processIdentifier
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/bin/sh")
-        task.arguments = ["-c", "while /bin/kill -0 \(pid) 2>/dev/null; do sleep 0.2; done; /usr/bin/open \"$0\"", Bundle.main.bundlePath]
-        try? task.run()
-        // Chiude prima eventuali fogli aperti (le Impostazioni), che possono bloccare l'uscita
+        relaunchRequested = Date()
+        if relaunchObserver == nil {
+            relaunchObserver = NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { _ in
+                guard let asked = relaunchRequested, Date().timeIntervalSince(asked) < 120 else { return }
+                let pid = ProcessInfo.processInfo.processIdentifier
+                let task = Process()
+                task.executableURL = URL(fileURLWithPath: "/bin/sh")
+                task.arguments = ["-c", "while /bin/kill -0 \(pid) 2>/dev/null; do sleep 0.2; done; /usr/bin/open \"$0\"", Bundle.main.bundlePath]
+                try? task.run()
+            }
+        }
+        // Le Impostazioni sono un foglio: chiudiamolo prima di uscire
         for window in NSApp.windows { window.attachedSheet.map { window.endSheet($0) } }
         NSApp.terminate(nil)
-        // Se qualcosa trattiene l'app, esce comunque: le preferenze sono già salvate
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { exit(0) }
     }
+    private static var relaunchRequested: Date?
+    private static var relaunchObserver: NSObjectProtocol?
 }
 
 // MARK: - Settings Sheet
