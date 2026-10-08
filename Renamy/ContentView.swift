@@ -13,10 +13,12 @@ import AppKit
 
 // MARK: - Enums & Localization
 
-enum AppLanguage: String, CaseIterable, Identifiable {
-    case italian = "Italiano"; case english = "English"
-    var id: String { self.rawValue }
-    var apiCode: String { self == .italian ? "it-IT" : "en-US" }
+/// Lingua dell'interfaccia: quella scelta nelle Impostazioni (AppleLanguages) o del sistema.
+/// macOS la legge all'avvio, come nelle altre app: dopo il cambio serve un riavvio.
+enum AppLanguage {
+    static var isItalian: Bool { Bundle.main.preferredLocalizations.first?.hasPrefix("it") ?? false }
+    /// Lingua dei titoli TMDB: segue quella dell'app
+    static var apiCode: String { isItalian ? "it-IT" : "en-US" }
 }
 
 enum AppTheme: String, CaseIterable, Identifiable {
@@ -34,100 +36,12 @@ enum AppTheme: String, CaseIterable, Identifiable {
         }
     }
 
-    func label(for lang: AppLanguage) -> String {
-        switch self {
-        case .system: return lang == .italian ? "Automatico" : "Automatic"
-        case .light:  return lang == .italian ? "Chiaro" : "Light"
-        case .dark:   return lang == .italian ? "Scuro" : "Dark"
-        }
-    }
+    var label: String { Strings.get("theme_\(rawValue)") }
 }
 
 struct Strings {
-    // FIX: dizionario statico, prima veniva ricostruito a ogni chiamata
-    private static let table: [String: [AppLanguage: String]] = [
-        "app_title":          [.italian: "Renamy",                   .english: "Renamy"],
-        "settings_title":     [.italian: "Impostazioni",            .english: "Settings"],
-        "status_ready":       [.italian: "Pronto",                  .english: "Ready"],
-        "status_not_found":   [.italian: "Non Trovato",             .english: "Not Found"],
-        "status_ambiguous":   [.italian: "Scegli...",               .english: "Select..."],
-        "status_manual":      [.italian: "Pronto (Manuale)",        .english: "Ready (Manual)"],
-        "status_moved":       [.italian: "Spostato!",               .english: "Moved!"],
-        "status_restored":    [.italian: "Ripristinato",            .english: "Restored"],
-        "status_error_move":  [.italian: "Errore File",             .english: "File Error"],
-        "status_error_net":   [.italian: "Errore Rete",             .english: "Network Error"],
-        "status_error":       [.italian: "Errore",                  .english: "Error"],
-        "msg_ready":          [.italian: "Trascina qui file o cartelle.", .english: "Drag files or folders here."],
-        "msg_adding":         [.italian: "Analisi nuovi file...",   .english: "Analyzing new files..."],
-        "msg_added":          [.italian: "File aggiunti.",          .english: "Files added."],
-        "msg_scanning":       [.italian: "Scansione...",            .english: "Scanning..."],
-        "msg_no_files":       [.italian: "Nessun nuovo file.",      .english: "No new files."],
-        "msg_scan_done":      [.italian: "Fatto.",                  .english: "Done."],
-        "msg_cleaned":        [.italian: "Lista svuotata.",         .english: "List cleared."],
-        "msg_searching":      [.italian: "Ricerca TMDB...",         .english: "Searching TMDB..."],
-        "msg_search_done":    [.italian: "Ricerca completata.",     .english: "Search completed."],
-        "msg_processing":     [.italian: "Elaborazione...",         .english: "Processing..."],
-        "msg_done":           [.italian: "Tutto fatto!",            .english: "All done!"],
-        "msg_undoing":        [.italian: "Ripristino...",           .english: "Restoring..."],
-        "msg_undo_done":      [.italian: "Ripristinati:",           .english: "Restored:"],
-        "msg_manual_search":  [.italian: "Cerca:",                  .english: "Search:"],
-        "msg_fetching_id":    [.italian: "Recupero TMDB ID...",     .english: "Fetching TMDB ID..."],
-        "err_no_folder":      [.italian: "Nessuna cartella.",       .english: "No folder."],
-        "err_no_api":         [.italian: "Manca API Key.",          .english: "Missing API Key."],
-        "err_api_invalid":    [.italian: "API Key TMDB non valida.", .english: "Invalid TMDB API Key."],
-        "err_no_ready":       [.italian: "Nessun file pronto.",     .english: "No files ready."],
-        "err_no_targets":     [.italian: "Nessun file da cercare.", .english: "No files to search."],
-        "err_ambiguous":      [.italian: "Risolvi ambiguità.",      .english: "Resolve ambiguities."],
-        "err_id_not_found":   [.italian: "ID non trovato.",         .english: "ID not found."],
-        "err_write_denied":   [.italian: "Permesso di scrittura negato.", .english: "Write permission denied."],
-        "col_original":       [.italian: "File Originale",          .english: "Original File"],
-        "col_proposed":       [.italian: "Nuovo Nome",              .english: "New Name"],
-        "col_status":         [.italian: "Stato",                   .english: "Status"],
-        "sheet_title":        [.italian: "Seleziona Titolo",        .english: "Select Title"],
-        "sheet_original":     [.italian: "File in esame:",          .english: "Analyzing file:"],
-        "sheet_applies_to":   [.italian: "La scelta si applica a %d file", .english: "This choice applies to %d files"],
-        "sheet_cancel":       [.italian: "Annulla",                 .english: "Cancel"],
-        "sec_api":            [.italian: "API",                     .english: "API"],
-        "sec_format":         [.italian: "Stile",                   .english: "Style"],
-        "sec_appearance":     [.italian: "Aspetto",                 .english: "Appearance"],
-        "sec_folders":        [.italian: "Cartelle",                .english: "Folders"],
-        "sec_language":       [.italian: "Lingua",                  .english: "Language"],
-        "lbl_format":         [.italian: "Formato",                 .english: "Format"],
-        "lbl_subfolders":     [.italian: "Includi sottocartelle",   .english: "Include subfolders"],
-        "lbl_move":           [.italian: "Sposta in cartelle",      .english: "Move to folders"],
-        "lbl_lang":           [.italian: "Lingua App",              .english: "App Language"],
-        "lbl_api_hint":       [.italian: "API Key v3 oppure Read Access Token v4", .english: "v3 API Key or v4 Read Access Token"],
-        "btn_search":         [.italian: "Cerca",                   .english: "Search"],
-        "btn_done":           [.italian: "Fatto",                   .english: "Done"],
-        "btn_open":           [.italian: "Apri",                    .english: "Open"],
-        "btn_tmdb":           [.italian: "Cerca TMDB",              .english: "Search TMDB"],
-        "btn_process":        [.italian: "Elabora",                 .english: "Process"],
-        "alert_confirm_title":[.italian: "Conferma",                .english: "Confirm"],
-        "alert_confirm_msg":  [.italian: "Procedere?",              .english: "Proceed?"],
-        "alert_manual_title": [.italian: "Manuale",                 .english: "Manual"],
-        "alert_manual_hint":  [.italian: "Titolo oppure #ID TMDB",  .english: "Title or #TMDB ID"],
-        "alert_manual_sub":   [.italian: "Titolo, oppure ID: #12345, tmdb:12345, tv:12345, movie:12345 o link themoviedb.org",
-                               .english: "Title, or ID: #12345, tmdb:12345, tv:12345, movie:12345 or a themoviedb.org link"],
-        "panel_access_msg":   [.italian: "Renamy necessita del permesso di scrittura per questa cartella. Seleziona '%@'.",
-                               .english: "Renamy needs write permission for this folder. Select '%@'."],
-        "panel_access_btn":   [.italian: "Concedi Accesso",         .english: "Grant Access"],
-        "ctx_manual":         [.italian: "Cerca manualmente…",      .english: "Search manually…"],
-        "ctx_reveal":         [.italian: "Mostra nel Finder",       .english: "Show in Finder"],
-        "tip_open":           [.italian: "Apri cartella",           .english: "Open folder"],
-        "tip_scan":           [.italian: "Scansiona (Solo Nuovi)",  .english: "Scan (New Only)"],
-        "tip_reset":          [.italian: "Reset",                   .english: "Reset"],
-        "tip_undo":           [.italian: "Annulla",                 .english: "Undo"],
-        "tip_tmdb":           [.italian: "Cerca manuale",           .english: "Manual Search"],
-        "tip_process":        [.italian: "Applica",                 .english: "Apply"],
-        "tip_settings":       [.italian: "Impostazioni",            .english: "Settings"],
-        "tip_sel_all":        [.italian: "Tutti",                   .english: "All"],
-        "tip_desel_all":      [.italian: "Nessuno",                 .english: "None"],
-        "tip_filter":         [.italian: "Filtra",                  .english: "Filter"]
-    ]
-
-    static func get(_ key: String, lang: AppLanguage) -> String {
-        table[key]?[lang] ?? key
-    }
+    /// Testi in it.lproj / en.lproj (Localizable.strings)
+    static func get(_ key: String) -> String { NSLocalizedString(key, comment: "") }
 }
 
 // MARK: - Models
@@ -153,15 +67,7 @@ enum RenameFormat: String, CaseIterable, Identifiable {
     case standard = "standard"; case compact = "compact"; case plex = "plex"; case jellyfin = "jellyfin"; case emby = "emby"
     var id: String { self.rawValue }
 
-    func label(for lang: AppLanguage) -> String {
-        switch self {
-        case .standard: return lang == .italian ? "Titolo (Anno)"                        : "Title (Year)"
-        case .compact:  return lang == .italian ? "Titolo.Anno"                          : "Title.Year"
-        case .plex:     return lang == .italian ? "Plex: Titolo (Anno) {tmdb-id}"        : "Plex: Title (Year) {tmdb-id}"
-        case .jellyfin: return lang == .italian ? "Jellyfin: Titolo (Anno) [tmdbid-id]"  : "Jellyfin: Title (Year) [tmdbid-id]"
-        case .emby:     return lang == .italian ? "Emby: Titolo (Anno) [tmdbid=id]"      : "Emby: Title (Year) [tmdbid=id]"
-        }
-    }
+    var label: String { Strings.get("fmt_\(rawValue)") }
 
     /// Tag TMDB riconosciuto dal media server (nil per i formati "semplici").
     func tmdbTag(_ id: String) -> String? {
@@ -199,17 +105,17 @@ enum TMDBError: Error { case unauthorized, http(Int) }
 
 enum FileStatus {
     case pronto, nonTrovato, ambiguo, manuale, spostato, ripristinato, erroreSpostamento, erroreRete, erroreRegex
-    func label(for lang: AppLanguage) -> String {
+    var label: String {
         switch self {
-        case .pronto:            return Strings.get("status_ready",      lang: lang)
-        case .nonTrovato:        return Strings.get("status_not_found",  lang: lang)
-        case .ambiguo:           return Strings.get("status_ambiguous",  lang: lang)
-        case .manuale:           return Strings.get("status_manual",     lang: lang)
-        case .spostato:          return Strings.get("status_moved",      lang: lang)
-        case .ripristinato:      return Strings.get("status_restored",   lang: lang)
-        case .erroreSpostamento: return Strings.get("status_error_move", lang: lang)
-        case .erroreRete:        return Strings.get("status_error_net",  lang: lang)
-        case .erroreRegex:       return Strings.get("status_error",      lang: lang)
+        case .pronto:            return Strings.get("status_ready")
+        case .nonTrovato:        return Strings.get("status_not_found")
+        case .ambiguo:           return Strings.get("status_ambiguous")
+        case .manuale:           return Strings.get("status_manual")
+        case .spostato:          return Strings.get("status_moved")
+        case .ripristinato:      return Strings.get("status_restored")
+        case .erroreSpostamento: return Strings.get("status_error_move")
+        case .erroreRete:        return Strings.get("status_error_net")
+        case .erroreRegex:       return Strings.get("status_error")
         }
     }
 }
@@ -493,7 +399,6 @@ final class RenamyViewModel: ObservableObject {
         willSet { objectWillChange.send() }
         didSet { regenerateProposedNames() }   // NEW: i nomi si aggiornano al cambio formato
     }
-    @AppStorage("appLanguage")       var appLanguage: AppLanguage = .italian { willSet { objectWillChange.send() } }
     @AppStorage("appTheme")          var appTheme: AppTheme = .system  { willSet { objectWillChange.send() } }
 
     @Published var filterNonTrovati = false
@@ -508,8 +413,8 @@ final class RenamyViewModel: ObservableObject {
     private var authFailed = false
 
     // FIX: prima lo stato iniziale era sempre in italiano
-    init() { self.statusText = Strings.get("msg_ready", lang: appLanguage) }
-    func t(_ key: String) -> String { Strings.get(key, lang: appLanguage) }
+    init() { self.statusText = Strings.get("msg_ready") }
+    func t(_ key: String) -> String { Strings.get(key) }
     func updateStatusReady() { statusText = t("msg_ready") }
 
     /// FIX: i MediaFile sono ObservableObject annidati: senza inoltro, filtro e toolbar
@@ -598,7 +503,7 @@ final class RenamyViewModel: ObservableObject {
         // NEW: supporto anche al Read Access Token v4 (JWT, molto più lungo della key v3)
         let isBearer = key.count > 40
         var items = params.map { URLQueryItem(name: $0.key, value: $0.value) }
-        items.append(URLQueryItem(name: "language", value: appLanguage.apiCode))
+        items.append(URLQueryItem(name: "language", value: AppLanguage.apiCode))
         if !isBearer { items.append(URLQueryItem(name: "api_key", value: key)) }
         comps.queryItems = items.sorted { $0.name < $1.name }
         // FIX: prima la query era codificata con .urlQueryAllowed, che NON codifica "&", "=" e "+":
@@ -1259,7 +1164,7 @@ struct FileRowView: View {
                 .disabled(file.status == .spostato)
                 .onChange(of: file.proposedName) { _, _ in vm.proposedNameEdited(file) }
             HStack {
-                Text(file.status.label(for: vm.appLanguage)).font(.callout).foregroundColor(color(for: file.status))
+                Text(file.status.label).font(.callout).foregroundColor(color(for: file.status))
                 if [.nonTrovato, .erroreRete, .erroreRegex].contains(file.status) {
                     Button(action: onManualSearch) { Image(systemName: "magnifyingglass").foregroundColor(.blue) }.buttonStyle(.plain)
                 } else if file.status == .ambiguo {
@@ -1289,22 +1194,21 @@ struct FileRowView: View {
 
 struct ThemeSelectionView: View {
     @Binding var selectedTheme: AppTheme
-    var language: AppLanguage
 
     var body: some View {
         HStack(spacing: 20) {
-            ThemeOptionView(title: AppTheme.system.label(for: language), isSelected: selectedTheme == .system) {
+            ThemeOptionView(title: AppTheme.system.label, isSelected: selectedTheme == .system) {
                 HStack(spacing: 0) {
                     ThemePreviewIcon(mode: .light).frame(width: 30).environment(\.colorScheme, .light)
                     ThemePreviewIcon(mode: .dark).frame(width: 30).environment(\.colorScheme, .dark)
                 }
             }.onTapGesture { selectedTheme = .system }
 
-            ThemeOptionView(title: AppTheme.light.label(for: language), isSelected: selectedTheme == .light) {
+            ThemeOptionView(title: AppTheme.light.label, isSelected: selectedTheme == .light) {
                 ThemePreviewIcon(mode: .light).frame(width: 60).environment(\.colorScheme, .light)
             }.onTapGesture { selectedTheme = .light }
 
-            ThemeOptionView(title: AppTheme.dark.label(for: language), isSelected: selectedTheme == .dark) {
+            ThemeOptionView(title: AppTheme.dark.label, isSelected: selectedTheme == .dark) {
                 ThemePreviewIcon(mode: .dark).frame(width: 60).environment(\.colorScheme, .dark)
             }.onTapGesture { selectedTheme = .dark }
         }
@@ -1340,6 +1244,52 @@ struct ThemePreviewIcon: View {
     }
 }
 
+// MARK: - Language
+
+/// Come nelle altre app: Sistema / Italiano / English, applicata al riavvio
+private struct LanguagePicker: View {
+    @State private var choice = LanguagePicker.current
+    private let initial = LanguagePicker.current
+
+    var body: some View {
+        Picker(Strings.get("lbl_lang"), selection: $choice) {
+            Text(Strings.get("lang_system")).tag("")
+            Text(verbatim: "Italiano").tag("it")
+            Text(verbatim: "English").tag("en")
+        }
+        .onChange(of: choice) { _, v in
+            if v.isEmpty {
+                UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+            } else {
+                UserDefaults.standard.set([v], forKey: "AppleLanguages")
+            }
+        }
+        if choice != initial {
+            HStack {
+                Text(Strings.get("lang_restart_hint"))
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                Spacer()
+                Button(Strings.get("btn_restart")) { Self.relaunch() }
+            }
+        }
+    }
+
+    static var current: String {
+        let domain = UserDefaults.standard.persistentDomain(forName: Bundle.main.bundleIdentifier ?? "") ?? [:]
+        return (domain["AppleLanguages"] as? [String])?.first.map { String($0.prefix(2)) } ?? ""
+    }
+
+    /// Una nuova istanza parte e questa si chiude
+    static func relaunch() {
+        let config = NSWorkspace.OpenConfiguration()
+        config.createsNewApplicationInstance = true
+        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: config) { _, _ in
+            DispatchQueue.main.async { NSApp.terminate(nil) }
+        }
+    }
+}
+
 // MARK: - Settings Sheet
 
 struct SettingsSheetView: View {
@@ -1356,16 +1306,14 @@ struct SettingsSheetView: View {
                     Text(vm.t("lbl_api_hint")).font(.caption).foregroundStyle(.secondary)
                 }
                 Section(vm.t("sec_language")) {
-                    Picker(vm.t("lbl_lang"), selection: $vm.appLanguage) {
-                        ForEach(AppLanguage.allCases) { Text($0.rawValue).tag($0) }
-                    }.onChange(of: vm.appLanguage) { _, _ in vm.updateStatusReady() }
+                    LanguagePicker()
                 }
                 Section(vm.t("sec_appearance")) {
-                    ThemeSelectionView(selectedTheme: $vm.appTheme, language: vm.appLanguage).padding(.vertical, 5)
+                    ThemeSelectionView(selectedTheme: $vm.appTheme).padding(.vertical, 5)
                 }
                 Section(vm.t("sec_format")) {
                     Picker(vm.t("lbl_format"), selection: $vm.renameFormat) {
-                        ForEach(RenameFormat.allCases) { Text($0.label(for: vm.appLanguage)).tag($0) }
+                        ForEach(RenameFormat.allCases) { Text($0.label).tag($0) }
                     }
                 }
                 Section(vm.t("sec_folders")) {

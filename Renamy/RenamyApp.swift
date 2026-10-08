@@ -12,6 +12,19 @@ struct RenamyApp: App {
     @State private var aboutWindow: NSWindow?
     @AppStorage("appTheme") private var appTheme: AppTheme = .system
 
+    init() {
+        // Fino alla 2.0.x la lingua era una preferenza interna ("appLanguage"): diventa la lingua
+        // dell'app per macOS, salvo che coincida con quella del sistema
+        let defaults = UserDefaults.standard
+        if let old = defaults.string(forKey: "appLanguage") {
+            let code = old == "English" ? "en" : "it"
+            // Nessuna lingua propria ancora impostata: questa è la lingua del Mac
+            let system = (Locale.preferredLanguages.first ?? "").prefix(2)
+            if code != system { defaults.set([code], forKey: "AppleLanguages") }
+            defaults.removeObject(forKey: "appLanguage")
+        }
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
@@ -19,13 +32,13 @@ struct RenamyApp: App {
         }
         .commands {
             CommandGroup(replacing: .appInfo) {
-                Button("About Renamy") {
+                Button(Strings.get("menu_about")) {
                     openAboutWindow()
                 }
             }
             
             CommandGroup(replacing: .appSettings) {
-                Button("Impostazioni...") {
+                Button(Strings.get("menu_settings")) {
                     NotificationCenter.default.post(name: Notification.Name("OpenSettings"), object: nil)
                 }
                 .keyboardShortcut(",", modifiers: .command)
