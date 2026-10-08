@@ -1246,32 +1246,32 @@ struct ThemePreviewIcon: View {
 
 // MARK: - Language
 
-/// Come nelle altre app: Sistema / Italiano / English, applicata al riavvio
+/// Come nelle altre app (Upgrady): Sistema / Italiano / English. macOS legge la lingua
+/// all'avvio, quindi al cambio si chiede di riavviare.
 private struct LanguagePicker: View {
     @State private var choice = LanguagePicker.current
-    private let initial = LanguagePicker.current
+    @State private var askRelaunch = false
 
     var body: some View {
-        Picker(Strings.get("lbl_lang"), selection: $choice) {
-            Text(Strings.get("lang_system")).tag("")
-            Text(verbatim: "Italiano").tag("it")
-            Text(verbatim: "English").tag("en")
-        }
-        .onChange(of: choice) { _, v in
-            if v.isEmpty {
-                UserDefaults.standard.removeObject(forKey: "AppleLanguages")
-            } else {
-                UserDefaults.standard.set([v], forKey: "AppleLanguages")
+        VStack(alignment: .leading, spacing: 4) {
+            Picker(Strings.get("lbl_lang"), selection: Binding(get: { choice }, set: { v in
+                choice = v
+                if v.isEmpty {
+                    UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+                } else {
+                    UserDefaults.standard.set([v], forKey: "AppleLanguages")
+                }
+                askRelaunch = true
+            })) {
+                Text(Strings.get("lang_system")).tag("")
+                Text(verbatim: "Italiano").tag("it")
+                Text(verbatim: "English").tag("en")
             }
+            Text(Strings.get("lang_restart_hint")).font(.caption).foregroundStyle(.secondary)
         }
-        if choice != initial {
-            HStack {
-                Text(Strings.get("lang_restart_hint"))
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                Spacer()
-                Button(Strings.get("btn_restart")) { Self.relaunch() }
-            }
+        .alert(Strings.get("alert_restart_title"), isPresented: $askRelaunch) {
+            Button(Strings.get("btn_restart")) { Self.relaunch() }
+            Button(Strings.get("btn_later"), role: .cancel) {}
         }
     }
 
@@ -1280,13 +1280,18 @@ private struct LanguagePicker: View {
         return (domain["AppleLanguages"] as? [String])?.first.map { String($0.prefix(2)) } ?? ""
     }
 
-    /// Una nuova istanza parte e questa si chiude
+    /// Riapre Renamy solo quando questa istanza è davvero chiusa, così non ne restano due aperte
     static func relaunch() {
-        let config = NSWorkspace.OpenConfiguration()
-        config.createsNewApplicationInstance = true
-        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: config) { _, _ in
-            DispatchQueue.main.async { NSApp.terminate(nil) }
-        }
+        let pid = ProcessInfo.processInfo.processIdentifier
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/sh")
+        task.arguments = ["-c", "while /bin/kill -0 \(pid) 2>/dev/null; do sleep 0.2; done; /usr/bin/open \"$0\"", Bundle.main.bundlePath]
+        try? task.run()
+        // Chiude prima eventuali fogli aperti (le Impostazioni), che possono bloccare l'uscita
+        for window in NSApp.windows { window.attachedSheet.map { window.endSheet($0) } }
+        NSApp.terminate(nil)
+        // Se qualcosa trattiene l'app, esce comunque: le preferenze sono già salvate
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { exit(0) }
     }
 }
 

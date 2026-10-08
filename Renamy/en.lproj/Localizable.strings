@@ -84,7 +84,9 @@
 "fmt_jellyfin" = "Jellyfin: Title (Year) [tmdbid-id]";
 "fmt_emby" = "Emby: Title (Year) [tmdbid=id]";
 "lang_system" = "System";
-"lang_restart_hint" = "Restart Renamy to apply the new language.";
-"btn_restart" = "Restart Now";
+"lang_restart_hint" = "Renamy restarts to change language.";
+"btn_restart" = "Relaunch Now";
 "menu_about" = "About Renamy";
 "menu_settings" = "Settings…";
+"alert_restart_title" = "Relaunch Renamy to change the language?";
+"btn_later" = "Later";
