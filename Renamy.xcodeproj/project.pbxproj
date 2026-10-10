@@ -8,7 +8,6 @@
 
 /* Begin PBXFileReference section */
 		990D8B9D2EBBBEF50030F3B1 /* Renamy.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Renamy.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		990D8BD62EBBC1350030F3B1 /* FoundationModels.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = FoundationModels.framework; path = System/Library/Frameworks/FoundationModels.framework; sourceTree = SDKROOT; };
 		990D8BED2EBBD2BB0030F3B1 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -52,7 +51,6 @@
 			isa = PBXGroup;
 			children = (
 				990D8BED2EBBD2BB0030F3B1 /* Foundation.framework */,
-				990D8BD62EBBC1350030F3B1 /* FoundationModels.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
