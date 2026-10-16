@@ -104,10 +104,19 @@ final class RenamyViewModel: ObservableObject {
             return
         }
 
-        let newFiles = newURLs.map { url -> MediaFile in
-            let parsed = parseEpisodeInfo(from: url.lastPathComponent)
-            return MediaFile(url: url, status: .pronto, isTVShow: parsed.isTV,
-                             parsedSeason: parsed.season, parsedEpisode: parsed.episode)
+        // NEW: riconoscimento da nome e cartelle ("Season 1", cartella della serie); l'anno presente solo
+        // su alcuni episodi della stessa serie e cartella vale per tutti, così fanno la stessa ricerca
+        let recognized = newURLs.map { url -> (folder: String, recognition: Recognition) in
+            let parent = url.deletingLastPathComponent()
+            let folders = [parent.lastPathComponent, parent.deletingLastPathComponent().lastPathComponent]
+            return (parent.path, recognize(fileName: url.lastPathComponent, folders: folders))
+        }
+        let years = harmonizeYears(recognized)
+        let newFiles = zip(newURLs, zip(recognized, years)).map { url, item -> MediaFile in
+            let r = item.0.recognition
+            let file = MediaFile(url: url, status: .pronto, isTVShow: r.isTV, parsedSeason: r.season, parsedEpisode: r.episode)
+            file.recognizedTitle = r.title; file.recognizedYear = item.1; file.looksLikeAnime = r.looksLikeAnime
+            return file
         }
 
         await searchNamesForFiles(newFiles)
@@ -144,11 +153,9 @@ final class RenamyViewModel: ObservableObject {
     }
 
     func searchName(for file: MediaFile, overrideQuery: String? = nil) async {
-        var query = ""; var yearToUse: String? = nil; var isTV = file.isTVShow
+        var query = ""; var yearToUse: String? = nil; let isTV = file.isTVShow
         if let q = overrideQuery?.trimmingCharacters(in: .whitespacesAndNewlines), !q.isEmpty { query = q } else {
-            let cleaned = cleanFileNameRegex(file.originalName)
-            query = cleaned.title; yearToUse = cleaned.year
-            if cleaned.isTV { isTV = true; file.isTVShow = true }
+            query = file.recognizedTitle; yearToUse = file.recognizedYear
         }
         guard !query.isEmpty else { file.status = .nonTrovato; return }
         do {
@@ -252,7 +259,7 @@ final class RenamyViewModel: ObservableObject {
 
     func prepareManualSearch(for file: MediaFile) {
         targetFileForManualSearch = file
-        retrySearchName = file.resolvedTitle ?? cleanFileNameRegex(file.originalName).title
+        retrySearchName = file.resolvedTitle ?? file.recognizedTitle
         isShowingRetryAlert = true
     }
 

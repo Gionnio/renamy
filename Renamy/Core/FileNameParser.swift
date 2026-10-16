@@ -18,8 +18,23 @@ enum Patterns {
     static let absoluteEpisode = try! NSRegularExpression(
         pattern: #"(?i)(?:^|[\s._\-\[])(?:ep|episodio)[.\s_]*(\d{1,4})(?=[\s._\-\]]|$)|(?:^|[\s._\-\[])e(\d{2,4})(?=[\s._\-\]]|$)"#)
     // Marcatore TV sul nome già "pulito" (punti/underscore → spazi); allineato ai due pattern sopra
+    // NEW: anche stagione nel titolo ("S2 - 03", "2nd Season", "Season 2") e numerazione assoluta ("Title - 05");
+    // nella numerazione assoluta un anno (19xx/20xx) non è mai un episodio
     static let tvMarker = try! NSRegularExpression(
-        pattern: #"(?i)\b(?:s\d{1,2}\s*e\d{1,4}|\d{1,2}x\d{1,3}|stagione\s*\d{1,2}|(?:ep|episodio)\s*\d{1,4}|e\d{2,4})\b"#)
+        pattern: #"(?i)\b(?:s\d{1,2}\s*e\d{1,4}|\d{1,2}x\d{1,3}|stagione\s*\d{1,2}|(?:ep|episodio)\s*\d{1,4}|e\d{2,4}|s\d{1,2}\s*-\s*\d{1,4}|\d{1,2}(?:st|nd|rd|th)\s+season|season\s+\d{1,2})\b|(?:^|\s)-\s*(?!(?:19|20)\d{2}(?!\d))\d{1,4}(?:v\d)?(?=\s|$)"#)
+    /// "Title S2 - 03", "Title 2nd Season - 04", "Title Season 2 - 04"
+    static let seasonDash = try! NSRegularExpression(
+        pattern: #"(?i)(?:(?<![a-z0-9])s(\d{1,2})|(\d{1,2})(?:st|nd|rd|th)[.\s_]+season|season[.\s_]+(\d{1,2}))[.\s_]*-[.\s_]*(\d{1,4})(?:v\d)?(?!\d)"#)
+    /// "Title - 05" (numerazione assoluta); un anno non è un episodio
+    static let dashAbsolute = try! NSRegularExpression(
+        pattern: #"(?i)(?:^|[\s._])-[\s._]*(?!(?:19|20)\d{2}(?!\d))(\d{1,4})(?:v\d)?(?=[\s._]|$)"#)
+    /// "01 - Episode title.mkv": usato solo dentro una cartella di stagione
+    static let leadingNumber = try! NSRegularExpression(pattern: #"^\s*(\d{1,3})\s*-\s"#)
+    /// Cartella di stagione: "Season 1", "Stagione 01", "S1"
+    static let seasonFolder = try! NSRegularExpression(pattern: #"(?i)^\s*(?:season|stagione|s)[\s._-]*(\d{1,2})\s*$"#)
+    /// Etichette tra parentesi quadre: "[Tag]", "[1080p]", "[ABCD1234]"
+    static let bracketTag = try! NSRegularExpression(pattern: #"\[[^\]]*\]"#)
+    static let checksumTag = try! NSRegularExpression(pattern: #"\[[0-9A-Fa-f]{8}\]"#)
     static let year = try! NSRegularExpression(pattern: #"\b(19\d{2}|20\d{2})\b"#)
     static let junk = try! NSRegularExpression(
         pattern: #"(?i)\b(1080p|720p|480p|4k|2160p|uhd|bluray|brrip|bdrip|web-dl|webdl|webrip|web|hdtv|dvdrip|h264|h265|hevc|x264|x265|ita|eng|multi|sub|subs|repack|proper|remux|ac3|aac|ddp|dts|hdr|10bit)\b"#)
@@ -38,9 +53,17 @@ func parseEpisodeInfo(from name: String) -> (isTV: Bool, season: String?, episod
             return (true, String(format: "%02d", Int(name[rS]) ?? 0), String(format: "%02d", Int(name[rE]) ?? 0))
         }
     }
+    if let m = Patterns.seasonDash.firstMatch(in: name, range: ns),
+       let sR = [1, 2, 3].map({ m.range(at: $0) }).first(where: { $0.location != NSNotFound }),
+       let rS = Range(sR, in: name), let rE = Range(m.range(at: 4), in: name) {
+        return (true, String(format: "%02d", Int(name[rS]) ?? 0), String(format: "%02d", Int(name[rE]) ?? 0))
+    }
     if let m = Patterns.absoluteEpisode.firstMatch(in: name, range: ns) {
         let r = m.range(at: 1).location != NSNotFound ? m.range(at: 1) : m.range(at: 2)
         if let rr = Range(r, in: name) { return (true, nil, String(format: "%02d", Int(name[rr]) ?? 0)) }
+    }
+    if let m = Patterns.dashAbsolute.firstMatch(in: name, range: ns), let rr = Range(m.range(at: 1), in: name) {
+        return (true, nil, String(format: "%02d", Int(name[rr]) ?? 0))
     }
     return (false, nil, nil)
 }
@@ -69,7 +92,11 @@ private func splitAtYear(_ text: String) -> (title: String, year: String)? {
 }
 
 func cleanFileNameRegex(_ raw: String) -> (title: String, year: String?, isTV: Bool) {
-    let nameWithoutExt = (raw as NSString).deletingPathExtension
+    cleanBaseName((raw as NSString).deletingPathExtension)
+}
+
+/// Title, year and TV marker of a name without extension (file or folder).
+func cleanBaseName(_ nameWithoutExt: String) -> (title: String, year: String?, isTV: Bool) {
     let clean = nameWithoutExt.replacingOccurrences(of: ".", with: " ").replacingOccurrences(of: "_", with: " ")
     let range = NSRange(clean.startIndex..., in: clean)
 
@@ -141,4 +168,89 @@ func extractTMDBID(from input: String) -> (id: String, kind: MediaKind?)? {
         return (rest, kind)
     }
     return nil
+}
+
+// MARK: - Recognition
+
+/// What Renamy understands from a file name and its folders.
+struct Recognition: Equatable {
+    var title: String
+    var year: String?
+    var isTV: Bool
+    var season: String?
+    var episode: String?
+    /// Name in the style of anime releases: bracket tags, checksum, absolute numbering or season in the title.
+    var looksLikeAnime: Bool
+}
+
+private func firstMatch(_ re: NSRegularExpression, in text: String) -> NSTextCheckingResult? {
+    re.firstMatch(in: text, range: NSRange(text.startIndex..., in: text))
+}
+
+/// Removes "[...]" tags and tidies the spaces they leave.
+private func removeBracketTags(_ text: String) -> String {
+    let ns = NSRange(text.startIndex..., in: text)
+    let s = Patterns.bracketTag.stringByReplacingMatches(in: text, range: ns, withTemplate: " ")
+    return Patterns.multiSpace.stringByReplacingMatches(in: s, range: NSRange(s.startIndex..., in: s), withTemplate: " ")
+        .trimmingCharacters(in: .whitespaces)
+}
+
+/// - Parameters:
+///   - fileName: file name with extension
+///   - folders: names of the containing folders, closest first (parent, grandparent)
+func recognize(fileName: String, folders: [String] = []) -> Recognition {
+    let base = (fileName as NSString).deletingPathExtension
+    let hasLeadingTag = base.trimmingCharacters(in: .whitespaces).hasPrefix("[")
+    let hasChecksum = firstMatch(Patterns.checksumTag, in: base) != nil
+    let name = removeBracketTags(base)
+
+    let parsed = parseEpisodeInfo(from: name)
+    let cleaned = cleanBaseName(name)
+    var result = Recognition(title: cleaned.title, year: cleaned.year, isTV: parsed.isTV || cleaned.isTV,
+                             season: parsed.season, episode: parsed.episode, looksLikeAnime: false)
+    let spaced = name.replacingOccurrences(of: ".", with: " ").replacingOccurrences(of: "_", with: " ")
+    let absolute = parsed.season == nil && firstMatch(Patterns.dashAbsolute, in: name) != nil
+    result.looksLikeAnime = hasLeadingTag || hasChecksum || absolute || firstMatch(Patterns.seasonDash, in: spaced) != nil
+
+    // Folders: "Season N" gives the season, the folder above gives the series
+    guard let parent = folders.first else { return result }
+    var seasonFromFolder: String? = nil
+    if let m = firstMatch(Patterns.seasonFolder, in: parent), let r = Range(m.range(at: 1), in: parent) {
+        seasonFromFolder = String(format: "%02d", Int(parent[r]) ?? 0)
+    }
+    let seriesFolder = seasonFromFolder != nil ? folders.dropFirst().first : parent
+
+    if let season = seasonFromFolder {
+        // "01 - Episode title.mkv" counts as an episode only inside a season folder
+        if !result.isTV, let m = firstMatch(Patterns.leadingNumber, in: name), let r = Range(m.range(at: 1), in: name) {
+            result.isTV = true; result.episode = String(format: "%02d", Int(name[r]) ?? 0); result.title = ""
+        }
+        if result.isTV, result.season == nil { result.season = season }
+    }
+    if result.isTV, result.title.isEmpty, let folder = seriesFolder {
+        let fromFolder = cleanBaseName(removeBracketTags(folder))
+        result.title = fromFolder.title
+        if result.year == nil { result.year = fromFolder.year }
+    }
+    return result
+}
+
+/// Episodes of the same series in the same folder share the year when only some file names have it.
+/// Movies are never touched: two films with the same title can be different films.
+/// - Returns: the year for each item, in the same order
+func harmonizeYears(_ items: [(folder: String, recognition: Recognition)]) -> [String?] {
+    var yearsByKey: [String: Set<String>] = [:]
+    let keys = items.map { item -> String? in
+        guard item.recognition.isTV, !item.recognition.title.isEmpty else { return nil }
+        return item.folder + "\u{1}" + normalizeTitle(item.recognition.title)
+    }
+    for (key, item) in zip(keys, items) {
+        guard let key, let year = item.recognition.year else { continue }
+        yearsByKey[key, default: []].insert(year)
+    }
+    return zip(keys, items).map { key, item in
+        if let year = item.recognition.year { return year }
+        guard let key, let years = yearsByKey[key], years.count == 1 else { return nil }
+        return years.first
+    }
 }

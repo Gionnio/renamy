@@ -17,6 +17,10 @@ final class MediaFile: ObservableObject, Identifiable {
     @Published var proposedName: String; @Published var isSelected: Bool
     @Published var status: FileStatus; @Published var isTVShow: Bool; @Published var tmdbID: String = ""
     var parsedSeason: String?; var parsedEpisode: String?
+    /// Titolo e anno riconosciuti dal nome del file e dalle cartelle (usati per la ricerca automatica).
+    var recognizedTitle = ""; var recognizedYear: String?
+    /// Nome in stile anime (etichette tra parentesi quadre, numerazione assoluta, stagione nel titolo).
+    var looksLikeAnime = false
     @Published var ambiguousCandidates: [DisambiguationCandidate]? = nil
     /// Metadati TMDB risolti: servono per rigenerare il nome al cambio formato e per le cartelle serie.
     var resolvedTitle: String?; var resolvedYear: String?
