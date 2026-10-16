@@ -41,7 +41,7 @@ final class RenamyViewModel: ObservableObject {
     @Published var pendingProcessAfterDisambiguation = false
 
     private var fileObservers: [UUID: AnyCancellable] = [:]
-    private var responseCache: [URL: Data] = [:]
+    private lazy var tmdb = TMDBClient(apiKey: { [weak self] in self?.apiKey ?? "" })
     private var createdFolders: Set<URL> = []
     private var authFailed = false
 
@@ -122,68 +122,10 @@ final class RenamyViewModel: ObservableObject {
 
     func resetAll() {
         isScanning = false; isProcessing = false; progress = 0; etaText = ""
-        fileList.removeAll(); fileObservers.removeAll(); responseCache.removeAll(); createdFolders.removeAll()
+        fileList.removeAll(); fileObservers.removeAll(); tmdb.clearCache(); createdFolders.removeAll()
         ambiguousMatches.removeAll(); undoHistory.removeAll()
         currentAmbiguity = nil; pendingProcessAfterDisambiguation = false; targetFileForManualSearch = nil
         statusText = t("msg_cleaned")
-    }
-
-    // MARK: TMDB networking
-
-    private func tmdbRequest(path: String, params: [String: String]) throws -> URLRequest {
-        guard var comps = URLComponents(string: "https://api.themoviedb.org/3/\(path)") else { throw URLError(.badURL) }
-        let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        // NEW: supporto anche al Read Access Token v4 (JWT, molto più lungo della key v3)
-        let isBearer = key.count > 40
-        var items = params.map { URLQueryItem(name: $0.key, value: $0.value) }
-        items.append(URLQueryItem(name: "language", value: AppLanguage.apiCode))
-        if !isBearer { items.append(URLQueryItem(name: "api_key", value: key)) }
-        comps.queryItems = items.sorted { $0.name < $1.name }
-        // FIX: prima la query era codificata con .urlQueryAllowed, che NON codifica "&", "=" e "+":
-        // "Fast & Furious" troncava la query. URLComponents gestisce & e =, il + va fatto a mano.
-        comps.percentEncodedQuery = comps.percentEncodedQuery?.replacingOccurrences(of: "+", with: "%2B")
-        guard let url = comps.url else { throw URLError(.badURL) }
-        var req = URLRequest(url: url)
-        req.setValue("application/json", forHTTPHeaderField: "Accept")
-        if isBearer { req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization") }
-        return req
-    }
-
-    /// Ritorna nil per 404. Le risposte OK vengono messe in cache: episodi della stessa serie
-    /// generano la stessa query e non devono rifare N chiamate identiche.
-    private func tmdbData(path: String, params: [String: String]) async throws -> Data? {
-        let req = try tmdbRequest(path: path, params: params)
-        if let url = req.url, let cached = responseCache[url] { return cached }
-        let (data, resp) = try await URLSession.shared.data(for: req)
-        guard let http = resp as? HTTPURLResponse else { throw URLError(.badServerResponse) }
-        switch http.statusCode {
-        case 200:
-            if let url = req.url { responseCache[url] = data }
-            return data
-        case 404: return nil
-        case 401: throw TMDBError.unauthorized
-        default:  throw TMDBError.http(http.statusCode)
-        }
-    }
-
-    private func decodeSearch(endpoint: String, params: [String: String], isTV: Bool) async throws -> [DisambiguationCandidate] {
-        guard let data = try await tmdbData(path: endpoint, params: params) else { return [] }
-        if isTV { return try JSONDecoder().decode(TMDBResponse<TVResult>.self, from: data).results.map(\.candidate) }
-        return try JSONDecoder().decode(TMDBResponse<MovieResult>.self, from: data).results.map(\.candidate)
-    }
-
-    private func searchCandidates(query: String, year: String?, isTV: Bool) async throws -> [DisambiguationCandidate] {
-        let endpoint = isTV ? "search/tv" : "search/movie"
-        let yearKey = isTV ? "first_air_date_year" : "year"
-        var params = ["query": query]
-        if let y = year, !y.isEmpty { params[yearKey] = y }
-        var cands = try await decodeSearch(endpoint: endpoint, params: params, isTV: isTV)
-        // FIX: se l'anno nel nome file è sbagliato (o è l'anno della stagione) riprova senza anno
-        if cands.isEmpty, params[yearKey] != nil {
-            params.removeValue(forKey: yearKey)
-            cands = try await decodeSearch(endpoint: endpoint, params: params, isTV: isTV)
-        }
-        return cands
     }
 
     // MARK: Search
@@ -210,7 +152,7 @@ final class RenamyViewModel: ObservableObject {
         }
         guard !query.isEmpty else { file.status = .nonTrovato; return }
         do {
-            let cands = try await searchCandidates(query: query, year: yearToUse, isTV: isTV)
+            let cands = try await tmdb.search(query: query, year: yearToUse, isTV: isTV)
             handleCandidates(cands, file: file, query: query, year: yearToUse)
         } catch TMDBError.unauthorized {
             authFailed = true; file.status = .erroreRete; statusText = t("err_api_invalid")
@@ -292,10 +234,7 @@ final class RenamyViewModel: ObservableObject {
 
         for k in order {
             do {
-                guard let data = try await tmdbData(path: k == .tv ? "tv/\(tmdbID)" : "movie/\(tmdbID)", params: [:]) else { continue }
-                let cand: DisambiguationCandidate
-                if k == .tv { cand = try JSONDecoder().decode(TVResult.self, from: data).candidate }
-                else { cand = try JSONDecoder().decode(MovieResult.self, from: data).candidate }
+                guard let cand = try await tmdb.details(id: tmdbID, kind: k) else { continue }
                 file.isTVShow = (k == .tv)
                 applyCandidate(cand, to: file)
                 return

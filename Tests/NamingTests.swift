@@ -37,3 +37,18 @@ func runNamingTests() {
                                         newName: "Big Buck Bunny (2008) {tmdb-10378}", format: .plex, base: base)
     check(film.path == "/Library/Big Buck Bunny (2008) {tmdb-10378}", "destination movie")
 }
+
+func runTMDBRequestTests() {
+    // Fake keys only: never a real key in the tests.
+    let v3 = try? TMDBRequest.make(path: "search/movie", params: ["query": "Fast & Furious + 1"], key: " fakekey123 ", language: "it-IT")
+    let query = v3?.url?.query ?? ""
+    check(query.contains("api_key=fakekey123"), "v3 key in the query, trimmed")
+    check(query.contains("query=Fast%20%26%20Furious%20%2B%201"), "query encodes & and + [\(query)]")
+    check(query.contains("language=it-IT"), "language in the query")
+    check(v3?.value(forHTTPHeaderField: "Authorization") == nil, "no Authorization header with a v3 key")
+
+    let token = String(repeating: "x", count: 64)
+    let v4 = try? TMDBRequest.make(path: "movie/10378", params: [:], key: token, language: "en-US")
+    check(v4?.value(forHTTPHeaderField: "Authorization") == "Bearer \(token)", "v4 token as Bearer")
+    check(!(v4?.url?.query ?? "").contains("api_key"), "no api_key with a v4 token")
+}
