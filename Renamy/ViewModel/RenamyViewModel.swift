@@ -33,6 +33,10 @@ final class RenamyViewModel: ObservableObject {
         didSet { regenerateProposedNames() }   // NEW: i nomi si aggiornano al cambio formato
     }
     @AppStorage("appTheme")          var appTheme: AppTheme = .system  { willSet { objectWillChange.send() } }
+    // NEW: anime con AniList e numerazione TMDB dalla mappa delle corrispondenze
+    @AppStorage("animeEnabled")       var animeEnabled = true           { willSet { objectWillChange.send() } }
+    @AppStorage("animeUseTMDB")       var animeUseTMDB = true           { willSet { objectWillChange.send() } }
+    @AppStorage("animeTitlesEnglish") var animeTitlesEnglish = true     { willSet { objectWillChange.send() } }
 
     @Published var filterNonTrovati = false
     @Published var undoHistory: [RenameHistoryItem] = []
@@ -42,6 +46,10 @@ final class RenamyViewModel: ObservableObject {
 
     private var fileObservers: [UUID: AnyCancellable] = [:]
     private lazy var tmdb = TMDBClient(apiKey: { [weak self] in self?.apiKey ?? "" })
+    private let anilist = AniListClient()
+    let animeMapping = AnimeMappingStore()
+    /// Risultati AniList già visti, per applicare la scelta fatta nel foglio.
+    private var anilistMedia: [Int: AniListMedia] = [:]
     private var createdFolders: Set<URL> = []
     private var authFailed = false
 
@@ -116,6 +124,7 @@ final class RenamyViewModel: ObservableObject {
             let r = item.0.recognition
             let file = MediaFile(url: url, status: .pronto, isTVShow: r.isTV, parsedSeason: r.season, parsedEpisode: r.episode)
             file.recognizedTitle = r.title; file.recognizedYear = item.1; file.looksLikeAnime = r.looksLikeAnime
+            file.recognizedSeason = r.season; file.recognizedEpisode = r.episode
             return file
         }
 
@@ -131,7 +140,7 @@ final class RenamyViewModel: ObservableObject {
 
     func resetAll() {
         isScanning = false; isProcessing = false; progress = 0; etaText = ""
-        fileList.removeAll(); fileObservers.removeAll(); tmdb.clearCache(); createdFolders.removeAll()
+        fileList.removeAll(); fileObservers.removeAll(); tmdb.clearCache(); anilist.clearCache(); anilistMedia.removeAll(); createdFolders.removeAll()
         ambiguousMatches.removeAll(); undoHistory.removeAll()
         currentAmbiguity = nil; pendingProcessAfterDisambiguation = false; targetFileForManualSearch = nil
         statusText = t("msg_cleaned")
@@ -158,6 +167,9 @@ final class RenamyViewModel: ObservableObject {
             query = file.recognizedTitle; yearToUse = file.recognizedYear
         }
         guard !query.isEmpty else { file.status = .nonTrovato; return }
+        file.anilistID = nil
+        // NEW: i nomi in stile anime si cercano prima su AniList; se AniList non trova nulla si prova TMDB
+        if overrideQuery == nil, animeEnabled, file.looksLikeAnime, await searchAnime(for: file, query: query) { return }
         do {
             let cands = try await tmdb.search(query: query, year: yearToUse, isTV: isTV)
             handleCandidates(cands, file: file, query: query, year: yearToUse)
@@ -180,10 +192,57 @@ final class RenamyViewModel: ObservableObject {
         file.status = .ambiguo; file.ambiguousCandidates = cands
     }
 
+    // MARK: Anime
+
+    /// true se il file è stato gestito (pronto o da scegliere); false per passare a TMDB.
+    private func searchAnime(for file: MediaFile, query: String) async -> Bool {
+        guard let results = try? await anilist.search(query), !results.isEmpty else { return false }
+        for m in results { anilistMedia[m.id] = m }
+        if let pick = AniListAPI.automaticChoice(results, query: query, isTV: file.isTVShow) {
+            await applyAniList(pick, to: file)
+        } else {
+            file.status = .ambiguo
+            file.ambiguousCandidates = results.map { $0.candidate(preferEnglish: animeTitlesEnglish) }
+        }
+        return true
+    }
+
+    /// Nome dalla voce AniList: con la mappa diventa titolo, ID e numerazione TMDB (quelli letti da
+    /// Plex e Jellyfin); senza corrispondenza resta il titolo AniList, senza tag.
+    func applyAniList(_ media: AniListMedia, to file: MediaFile) async {
+        file.anilistID = media.id
+        if animeUseTMDB, let index = await animeMapping.currentIndex() {
+            do {
+                if media.isMovie || !file.isTVShow, let movieID = index.tmdbMovie(anilistID: media.id),
+                   let cand = try await tmdb.details(id: String(movieID), kind: .movie) {
+                    file.isTVShow = false; applyCandidate(cand, to: file); return
+                }
+                if file.isTVShow, let episode = file.recognizedEpisode.flatMap({ Int($0) }),
+                   let ref = index.tmdbEpisode(anilistID: media.id, fileSeason: file.recognizedSeason.flatMap { Int($0) }, fileEpisode: episode),
+                   let cand = try await tmdb.details(id: String(ref.tvID), kind: .tv) {
+                    applyCandidate(cand, to: file, season: String(format: "%02d", ref.season), episode: String(format: "%02d", ref.episode))
+                    return
+                }
+                if let tv = index.entry(anilistID: media.id)?.tmdbTV, let cand = try await tmdb.details(id: String(tv), kind: .tv) {
+                    applyCandidate(cand, to: file); return
+                }
+            } catch TMDBError.unauthorized {
+                authFailed = true; file.status = .erroreRete; statusText = t("err_api_invalid"); return
+            } catch {
+                // Nome dal titolo AniList
+            }
+        }
+        if media.isMovie { file.isTVShow = false }
+        applyCandidate(media.candidate(preferEnglish: animeTitlesEnglish), to: file)
+    }
+
     // MARK: Naming
 
-    func applyCandidate(_ cand: DisambiguationCandidate, to file: MediaFile) {
-        file.tmdbID = cand.id; file.resolvedTitle = cand.title; file.resolvedYear = cand.year
+    /// - Parameters: season, episode: numerazione da usare al posto di quella del nome (anime → TMDB)
+    func applyCandidate(_ cand: DisambiguationCandidate, to file: MediaFile, season: String? = nil, episode: String? = nil) {
+        file.tmdbID = cand.source == .tmdb ? cand.id : ""
+        file.resolvedTitle = cand.title; file.resolvedYear = cand.year
+        file.parsedSeason = season ?? file.recognizedSeason; file.parsedEpisode = episode ?? file.recognizedEpisode
         let name = buildFileName(for: file)
         file.generatedName = name          // prima di proposedName: vedi proposedNameEdited
         file.proposedName = name
@@ -234,7 +293,7 @@ final class RenamyViewModel: ObservableObject {
     // MARK: Fetch diretto per TMDB ID
 
     func fetchByTMDBID(_ tmdbID: String, kind: MediaKind?, for file: MediaFile) async {
-        statusText = t("msg_fetching_id")
+        statusText = t("msg_fetching_id"); file.anilistID = nil
         // Gli ID film e serie sono spazi separati (movie/123 ≠ tv/123): se l'utente specifica
         // "tv:" o "movie:" si usa solo quello, altrimenti si prova prima il tipo più probabile.
         let order: [MediaKind] = kind.map { [$0] } ?? (file.isTVShow ? [.tv, .movie] : [.movie, .tv])
@@ -466,7 +525,22 @@ final class RenamyViewModel: ObservableObject {
 
     func resolveAmbiguity(selected: DisambiguationCandidate) {
         guard let current = currentAmbiguity else { return }
-        for f in fileList where current.fileIDs.contains(f.id) { applyCandidate(selected, to: f) }
+        let files = fileList.filter { current.fileIDs.contains($0.id) }
+        // NEW: una scelta AniList passa dalla mappa (rete): si chiude il foglio e si prosegue a lavoro finito
+        if selected.source == .anilist, let id = Int(selected.id), let media = anilistMedia[id] {
+            currentAmbiguity = nil; statusText = t("msg_searching")
+            Task {
+                for f in files { await applyAniList(media, to: f) }
+                statusText = authFailed ? t("err_api_invalid") : t("msg_search_done")
+                continueAfterResolution()
+            }
+            return
+        }
+        for f in files { applyCandidate(selected, to: f) }
+        continueAfterResolution()
+    }
+
+    private func continueAfterResolution() {
         // FIX: prima rimuoveva il match per UUID da una lista che nel frattempo poteva essere stata
         // ricostruita (UUID diversi) → lo stesso sheet si ripresentava. Ora si ricostruisce sempre.
         rebuildAmbiguities()
@@ -498,7 +572,7 @@ final class RenamyViewModel: ObservableObject {
         for f in fileList where f.status == .ambiguo {
             guard let cands = f.ambiguousCandidates, !cands.isEmpty else { continue }
             // I film non vengono raggruppati: due film diversi possono avere lo stesso titolo
-            let key = f.isTVShow ? "tv:" + cands.map(\.id).joined(separator: ",") : "movie:\(f.id.uuidString)"
+            let key = f.isTVShow ? "tv:" + cands.map { "\($0.source.rawValue):\($0.id)" }.joined(separator: ",") : "movie:\(f.id.uuidString)"
             if groups[key] == nil { order.append(key); groups[key] = ([], cands, f.isTVShow) }
             groups[key]?.ids.append(f.id)
         }

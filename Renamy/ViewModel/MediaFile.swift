@@ -19,6 +19,11 @@ final class MediaFile: ObservableObject, Identifiable {
     var parsedSeason: String?; var parsedEpisode: String?
     /// Titolo e anno riconosciuti dal nome del file e dalle cartelle (usati per la ricerca automatica).
     var recognizedTitle = ""; var recognizedYear: String?
+    /// Stagione ed episodio scritti nel nome (o nelle cartelle); parsedSeason/parsedEpisode possono
+    /// diventare la numerazione TMDB di un anime.
+    var recognizedSeason: String?; var recognizedEpisode: String?
+    /// Voce AniList usata per l'abbinamento, nil per TMDB.
+    var anilistID: Int?
     /// Nome in stile anime (etichette tra parentesi quadre, numerazione assoluta, stagione nel titolo).
     var looksLikeAnime = false
     @Published var ambiguousCandidates: [DisambiguationCandidate]? = nil

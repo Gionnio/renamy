@@ -90,3 +90,15 @@
 "menu_settings" = "Impostazioni…";
 "alert_restart_title" = "Riavviare Renamy per cambiare lingua?";
 "btn_later" = "Più tardi";
+
+/* Anime */
+"sec_anime" = "Anime";
+"lbl_anime_enabled" = "Riconosci gli anime";
+"lbl_anime_enabled_hint" = "Cerca su AniList i file con nomi da anime (“Titolo - 05”, “2nd Season”). Nessuna chiave richiesta.";
+"lbl_anime_tmdb" = "Usa la numerazione TMDB";
+"lbl_anime_tmdb_hint" = "Converte titolo, stagione ed episodio nella numerazione letta da Plex e Jellyfin, con una mappa delle corrispondenze scaricata e aggiornata ogni settimana.";
+"lbl_anime_english" = "Titoli in inglese se la serie non è su TMDB";
+"btn_update_now" = "Aggiorna ora";
+"anime_map_never" = "Mappa non ancora scaricata";
+"anime_map_date" = "Mappa del %@";
+"anime_map_status" = "Mappa del %@ · %ld titoli";

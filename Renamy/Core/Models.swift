@@ -22,8 +22,14 @@ struct Strings {
     static func get(_ key: String) -> String { NSLocalizedString(key, comment: "") }
 }
 
+/// Where a candidate comes from.
+enum MetadataSource: String, Hashable { case tmdb, anilist }
+
 struct DisambiguationCandidate: Identifiable, Hashable {
     let id: String; let title: String; let originalTitle: String; let year: String; let date: String
+    var source: MetadataSource = .tmdb
+    /// AniList format (TV, MOVIE, OVA…), nil for TMDB.
+    var format: String? = nil
 }
 
 // FIX: i match referenziano i file per UUID (non per indice, che diventava stantio)

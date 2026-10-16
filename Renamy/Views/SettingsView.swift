@@ -96,8 +96,43 @@ struct SettingsSheetView: View {
                     Toggle(vm.t("lbl_subfolders"), isOn: $vm.includeSubfolders)
                     Toggle(vm.t("lbl_move"), isOn: $vm.createSubfolders)
                 }
+                AnimeSettingsSection(vm: vm, mapping: vm.animeMapping)
             }.padding()
             Button(vm.t("btn_done")) { dismiss() }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction).padding()
-        }.frame(width: 440, height: 580)
+        }.frame(width: 460, height: 720)
+    }
+}
+
+/// NEW: anime con AniList e numerazione TMDB.
+private struct AnimeSettingsSection: View {
+    @ObservedObject var vm: RenamyViewModel
+    @ObservedObject var mapping: AnimeMappingStore
+
+    var body: some View {
+        Section {
+            Toggle(isOn: $vm.animeEnabled) {
+                Text(vm.t("lbl_anime_enabled"))
+                Text(vm.t("lbl_anime_enabled_hint")).font(.caption).foregroundStyle(.secondary)
+            }
+            Toggle(isOn: $vm.animeUseTMDB) {
+                Text(vm.t("lbl_anime_tmdb"))
+                Text(vm.t("lbl_anime_tmdb_hint")).font(.caption).foregroundStyle(.secondary)
+            }.disabled(!vm.animeEnabled)
+            Toggle(vm.t("lbl_anime_english"), isOn: $vm.animeTitlesEnglish).disabled(!vm.animeEnabled)
+            HStack {
+                Text(status).font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                if mapping.isUpdating { ProgressView().controlSize(.small) }
+                Button(vm.t("btn_update_now")) { Task { await mapping.refresh() } }
+                    .controlSize(.small).disabled(mapping.isUpdating || !vm.animeEnabled || !vm.animeUseTMDB)
+            }
+        } header: { Text(vm.t("sec_anime")) }
+    }
+
+    private var status: String {
+        guard let date = mapping.lastUpdated else { return vm.t("anime_map_never") }
+        let when = date.formatted(date: .numeric, time: .omitted)
+        guard mapping.entryCount > 0 else { return String(format: vm.t("anime_map_date"), when) }
+        return String(format: vm.t("anime_map_status"), when, mapping.entryCount)
     }
 }

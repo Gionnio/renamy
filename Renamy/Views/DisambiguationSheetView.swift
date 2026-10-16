@@ -37,6 +37,10 @@ struct DisambiguationSheetView: View {
                             if cand.originalTitle != cand.title {
                                 Text(cand.originalTitle).font(.caption).foregroundColor(.secondary)
                             }
+                            // NEW: fonte e formato per i risultati AniList (TV, MOVIE, OVA…)
+                            if cand.source == .anilist {
+                                Text("AniList" + (cand.format.map { " · \($0)" } ?? "")).font(.caption2).foregroundColor(.secondary)
+                            }
                         }
                         Spacer()
                         VStack(alignment: .trailing) {

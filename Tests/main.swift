@@ -26,6 +26,7 @@ func check(_ condition: Bool, _ name: String, knownIssue: String? = nil) {
 runFileNameParserTests()
 runNamingTests()
 runTMDBRequestTests()
+runAnimeTests()
 
 print("\n\(passed) passed, \(failed) failed, \(expectedFailures) known issues, \(unexpectedPasses) unexpected passes")
 exit(failed == 0 && unexpectedPasses == 0 ? 0 : 1)
