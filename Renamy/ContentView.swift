@@ -11,15 +11,7 @@ import Combine
 import UniformTypeIdentifiers
 import AppKit
 
-// MARK: - Enums & Localization
-
-/// Lingua dell'interfaccia: quella scelta nelle Impostazioni (AppleLanguages) o del sistema.
-/// macOS la legge all'avvio, come nelle altre app: dopo il cambio serve un riavvio.
-enum AppLanguage {
-    static var isItalian: Bool { Bundle.main.preferredLocalizations.first?.hasPrefix("it") ?? false }
-    /// Lingua dei titoli TMDB: segue quella dell'app
-    static var apiCode: String { isItalian ? "it-IT" : "en-US" }
-}
+// MARK: - Theme
 
 enum AppTheme: String, CaseIterable, Identifiable {
     case system = "system"
@@ -39,84 +31,7 @@ enum AppTheme: String, CaseIterable, Identifiable {
     var label: String { Strings.get("theme_\(rawValue)") }
 }
 
-struct Strings {
-    /// Testi in it.lproj / en.lproj (Localizable.strings)
-    static func get(_ key: String) -> String { NSLocalizedString(key, comment: "") }
-}
-
 // MARK: - Models
-
-struct DisambiguationCandidate: Identifiable, Hashable {
-    let id: String; let title: String; let originalTitle: String; let year: String; let date: String
-}
-
-// FIX: i match referenziano i file per UUID (non per indice, che diventava stantio)
-// e hanno un id deterministico, così `sheet(item:)` non si confonde dopo un rebuild.
-struct AmbiguousMatch: Identifiable {
-    let id: String
-    let fileIDs: [UUID]
-    let candidates: [DisambiguationCandidate]
-    let isTV: Bool
-}
-
-struct RenameHistoryItem { let originalURL: URL; let newURL: URL; let fileID: UUID; let baseURL: URL? }
-
-enum RenameFormat: String, CaseIterable, Identifiable {
-    case standard = "standard"; case compact = "compact"; case plex = "plex"; case jellyfin = "jellyfin"; case emby = "emby"
-    var id: String { self.rawValue }
-
-    var label: String { Strings.get("fmt_\(rawValue)") }
-
-    /// Tag TMDB riconosciuto dal media server (nil per i formati "semplici").
-    func tmdbTag(_ id: String) -> String? {
-        guard !id.isEmpty else { return nil }
-        switch self {
-        case .plex:              return "{tmdb-\(id)}"
-        case .jellyfin:          return "[tmdbid-\(id)]"
-        case .emby:              return "[tmdbid=\(id)]"
-        case .standard, .compact: return nil
-        }
-    }
-}
-
-struct TMDBResponse<T: Codable>: Codable { let results: [T] }
-
-struct MovieResult: Codable, Identifiable {
-    let id: Int; let title: String; let originalTitle: String?; let releaseDate: String?
-    enum CodingKeys: String, CodingKey { case id, title; case originalTitle = "original_title"; case releaseDate = "release_date" }
-    var year: String { guard let d = releaseDate, d.count >= 4 else { return "N/A" }; return String(d.prefix(4)) }
-    var candidate: DisambiguationCandidate {
-        DisambiguationCandidate(id: "\(id)", title: title, originalTitle: originalTitle ?? title, year: year, date: releaseDate ?? "")
-    }
-}
-
-struct TVResult: Codable, Identifiable {
-    let id: Int; let name: String; let originalName: String?; let firstAirDate: String?
-    enum CodingKeys: String, CodingKey { case id, name; case originalName = "original_name"; case firstAirDate = "first_air_date" }
-    var year: String { guard let d = firstAirDate, d.count >= 4 else { return "N/A" }; return String(d.prefix(4)) }
-    var candidate: DisambiguationCandidate {
-        DisambiguationCandidate(id: "\(id)", title: name, originalTitle: originalName ?? name, year: year, date: firstAirDate ?? "")
-    }
-}
-
-enum TMDBError: Error { case unauthorized, http(Int) }
-
-enum FileStatus {
-    case pronto, nonTrovato, ambiguo, manuale, spostato, ripristinato, erroreSpostamento, erroreRete, erroreRegex
-    var label: String {
-        switch self {
-        case .pronto:            return Strings.get("status_ready")
-        case .nonTrovato:        return Strings.get("status_not_found")
-        case .ambiguo:           return Strings.get("status_ambiguous")
-        case .manuale:           return Strings.get("status_manual")
-        case .spostato:          return Strings.get("status_moved")
-        case .ripristinato:      return Strings.get("status_restored")
-        case .erroreSpostamento: return Strings.get("status_error_move")
-        case .erroreRete:        return Strings.get("status_error_net")
-        case .erroreRegex:       return Strings.get("status_error")
-        }
-    }
-}
 
 final class MediaFile: ObservableObject, Identifiable {
     let id = UUID(); let originalURL: URL; let originalName: String
@@ -471,44 +386,20 @@ final class RenamyViewModel: ObservableObject {
         file.status = .pronto; file.isSelected = true; file.ambiguousCandidates = nil
     }
 
-    private func hasValidYear(_ year: String?) -> Bool {
-        guard let y = year else { return false }
-        return y.count == 4 && y.allSatisfy(\.isNumber)
+    /// Metadati risolti del file, nil se non è mai stato abbinato.
+    private func resolvedMedia(for file: MediaFile) -> ResolvedMedia? {
+        guard let title = file.resolvedTitle else { return nil }
+        return ResolvedMedia(title: title, year: file.resolvedYear ?? "", tmdbID: file.tmdbID, isTV: file.isTVShow,
+                             season: file.parsedSeason, episode: file.parsedEpisode)
     }
 
     func buildFileName(for file: MediaFile) -> String {
-        guard let rawTitle = file.resolvedTitle else { return file.proposedName }
-        let title = sanitizeFileName(rawTitle)
-        let year = file.resolvedYear ?? ""
-        // FIX: senza data di uscita prima usciva "Titolo (N/A)"
-        let hasYear = hasValidYear(year)
-        var name: String
-        if renameFormat == .compact {
-            name = title.replacingOccurrences(of: " ", with: ".") + (hasYear ? ".\(year)" : "")
-        } else {
-            name = hasYear ? "\(title) (\(year))" : title
-            // Per le serie il tag TMDB va sulla cartella della serie, non sul singolo episodio
-            if !file.isTVShow, let tag = renameFormat.tmdbTag(file.tmdbID) { name += " \(tag)" }
-        }
-        if file.isTVShow, let e = file.parsedEpisode {
-            let s = file.parsedSeason ?? "01"
-            name += (renameFormat == .compact ? "." : " ") + "S\(s)E\(e)"
-        }
-        return sanitizeFileName(name)
+        guard let media = resolvedMedia(for: file) else { return file.proposedName }
+        return Naming.fileName(media, format: renameFormat)
     }
 
     func seriesFolderName(for file: MediaFile) -> String? {
-        guard let rawTitle = file.resolvedTitle else { return nil }
-        let title = sanitizeFileName(rawTitle)
-        let year = file.resolvedYear ?? ""
-        let base = hasValidYear(year) ? "\(title) (\(year))" : title
-        switch renameFormat {
-        case .compact:  return title
-        case .standard: return base
-        case .plex, .jellyfin, .emby:
-            if let tag = renameFormat.tmdbTag(file.tmdbID) { return sanitizeFileName("\(base) \(tag)") }
-            return base
-        }
+        resolvedMedia(for: file).map { Naming.seriesFolderName($0, format: renameFormat) }
     }
 
     func regenerateProposedNames() {
@@ -656,26 +547,11 @@ final class RenamyViewModel: ObservableObject {
         return granted
     }
 
-    /// Cartella di destinazione. Per le serie usa i metadati TMDB (robusto per tutti i formati);
-    /// la regex serve solo se l'utente ha modificato il nome a mano.
+    /// Cartella di destinazione (vedi Naming.destinationFolder).
     private func destinationFolder(for file: MediaFile, newName: String, base: URL) -> URL {
-        if file.isTVShow {
-            if newName == file.generatedName, file.parsedEpisode != nil, let series = seriesFolderName(for: file) {
-                let season = file.parsedSeason ?? "01"
-                return base.appendingPathComponent(series, isDirectory: true)
-                    .appendingPathComponent("Season \(season)", isDirectory: true)
-            }
-            let ns = NSRange(newName.startIndex..., in: newName)
-            if let m = Patterns.tvFolderFallback.firstMatch(in: newName, range: ns),
-               let tR = Range(m.range(at: 1), in: newName), let sR = Range(m.range(at: 2), in: newName) {
-                var root = String(newName[tR])
-                if renameFormat == .compact { root = root.replacingOccurrences(of: ".", with: " ") }
-                let season = String(format: "%02d", Int(newName[sR]) ?? 1)
-                return base.appendingPathComponent(sanitizeFileName(root), isDirectory: true)
-                    .appendingPathComponent("Season \(season)", isDirectory: true)
-            }
-        }
-        return base.appendingPathComponent(newName, isDirectory: true)
+        Naming.destinationFolder(media: resolvedMedia(for: file), isTV: file.isTVShow,
+                                 usesGeneratedName: newName == file.generatedName,
+                                 newName: newName, format: renameFormat, base: base)
     }
 
     func executeProcessing() {
