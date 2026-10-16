@@ -23,3 +23,5 @@ xcuserdata/
 build/
 dist/
 *.profraw
+/dev/
+/CLAUDE.md
