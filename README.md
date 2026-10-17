@@ -66,7 +66,7 @@ brew upgrade --cask renamy
 ## 📥 Manual Installation (Pre-built App)
 
 1. Go to the **[Releases](../../releases)** section of this page.
-2. Download the latest `.zip` file (e.g., `Renamy_v3.0.0.zip`).
+2. Download the latest `.zip` file (e.g., `Renamy_v3.0.1.zip`).
 3. Unzip the file and move `Renamy.app` to your **Applications** folder.
 
 ### ⚠️ Important: How to open the app
