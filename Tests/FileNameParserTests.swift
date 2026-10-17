@@ -66,6 +66,11 @@ func runFileNameParserTests() {
     let movies = harmonizeYears([("/a", recognize(fileName: "Dune.2021.mkv")), ("/a", recognize(fileName: "Dune.mkv"))])
     check(movies == ["2021", nil], "harmonizeYears never touches movies")
 
+    // Second attempt for joined words
+    check(splitJoinedWords("DragonBallZ") == "Dragon Ball Z", "splitJoinedWords DragonBallZ")
+    check(splitJoinedWords("Show Name") == "Show Name", "splitJoinedWords leaves normal titles")
+    check(splitJoinedWords("WALL-E") == "WALL-E", "splitJoinedWords leaves uppercase titles")
+
     // TMDB IDs typed in the manual search
     check(extractTMDBID(from: "#12345")?.id == "12345", "extractTMDBID #id")
     check(extractTMDBID(from: "tv:1396")?.kind == .tv, "extractTMDBID tv:")

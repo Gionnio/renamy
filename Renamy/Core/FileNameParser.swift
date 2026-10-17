@@ -254,3 +254,15 @@ func harmonizeYears(_ items: [(folder: String, recognition: Recognition)]) -> [S
         return years.first
     }
 }
+
+/// "DragonBallZ" → "Dragon Ball Z". Used only as a second attempt when a search finds nothing:
+/// applied always it would break titles like "MacGyver" or "iCarly".
+func splitJoinedWords(_ text: String) -> String {
+    var out = ""
+    let chars = Array(text)
+    for (i, c) in chars.enumerated() {
+        if i > 0, c.isUppercase, chars[i - 1].isLowercase { out.append(" ") }
+        out.append(c)
+    }
+    return out
+}

@@ -62,7 +62,9 @@ final class RenamyViewModel: ObservableObject {
     private var authFailed = false
 
     // FIX: prima lo stato iniziale era sempre in italiano
-    init() { self.statusText = Strings.get("msg_ready") }
+    init() {
+        self.statusText = Strings.get("msg_ready")
+    }
     func t(_ key: String) -> String { Strings.get(key) }
     func updateStatusReady() { statusText = t("msg_ready") }
 
@@ -180,8 +182,17 @@ final class RenamyViewModel: ObservableObject {
         // NEW: i nomi in stile anime si cercano prima su AniList; se AniList non trova nulla si prova TMDB
         if overrideQuery == nil, animeEnabled, file.looksLikeAnime, await searchAnime(for: file, query: query) { return }
         do {
-            let cands = try await tmdb.search(query: query, year: yearToUse, isTV: isTV)
-            handleCandidates(cands, file: file, query: query, year: yearToUse)
+            var cands = try await tmdb.search(query: query, year: yearToUse, isTV: isTV)
+            var usedQuery = query
+            // NEW: niente risultati → secondo tentativo con le parole staccate ("DragonBallZ" → "Dragon Ball Z")
+            let split = splitJoinedWords(query)
+            if cands.isEmpty, overrideQuery == nil, split != query {
+                cands = try await tmdb.search(query: split, year: yearToUse, isTV: isTV)
+                usedQuery = split
+            }
+            // NEW: una serie che TMDB non trova si prova su AniList, accettando solo il titolo identico
+            if cands.isEmpty, overrideQuery == nil, isTV, animeEnabled, await searchAnimeExactOnly(for: file, queries: [query, split]) { return }
+            handleCandidates(cands, file: file, query: usedQuery, year: yearToUse)
         } catch TMDBError.unauthorized {
             authFailed = true; file.status = .erroreRete; statusText = t("err_api_invalid")
         } catch {
@@ -214,6 +225,18 @@ final class RenamyViewModel: ObservableObject {
             file.ambiguousCandidates = results.map { $0.candidate(preferEnglish: animeTitlesEnglish) }
         }
         return true
+    }
+
+    /// Ultimo tentativo per le serie che TMDB non trova: solo un risultato AniList con titolo identico.
+    private func searchAnimeExactOnly(for file: MediaFile, queries: [String]) async -> Bool {
+        for q in Array(Set(queries)) where !q.isEmpty {
+            guard let results = try? await anilist.search(q), !results.isEmpty else { continue }
+            for m in results { anilistMedia[m.id] = m }
+            let norm = normalizeTitle(q)
+            let exact = results.filter { $0.allTitles.contains { normalizeTitle($0) == norm } && !$0.isMovie }
+            if exact.count == 1 { await applyAniList(exact[0], to: file); return true }
+        }
+        return false
     }
 
     /// Nome dalla voce AniList: con la mappa diventa titolo, ID e numerazione TMDB (quelli letti da
