@@ -28,7 +28,9 @@ final class MediaFile: ObservableObject, Identifiable {
     var looksLikeAnime = false
     @Published var ambiguousCandidates: [DisambiguationCandidate]? = nil
     /// Metadati TMDB risolti: servono per rigenerare il nome al cambio formato e per le cartelle serie.
-    var resolvedTitle: String?; var resolvedYear: String?
+    var resolvedTitle: String?; var resolvedYear: String?; var resolvedOriginalTitle: String?
+    /// Copertina del titolo abbinato (TMDB o AniList).
+    @Published var posterURL: URL?
     /// Ultimo nome generato automaticamente (per distinguere le modifiche manuali).
     var generatedName: String = ""
 

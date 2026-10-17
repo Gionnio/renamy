@@ -30,6 +30,14 @@ struct DisambiguationCandidate: Identifiable, Hashable {
     var source: MetadataSource = .tmdb
     /// AniList format (TV, MOVIE, OVA…), nil for TMDB.
     var format: String? = nil
+    /// Poster image URL, if any.
+    var posterURL: String? = nil
+}
+
+/// TMDB poster URL from a `poster_path`.
+func tmdbPosterURL(_ path: String?) -> String? {
+    guard let path, !path.isEmpty else { return nil }
+    return "https://image.tmdb.org/t/p/w185\(path)"
 }
 
 // FIX: i match referenziano i file per UUID (non per indice, che diventava stantio)
@@ -64,20 +72,22 @@ enum RenameFormat: String, CaseIterable, Identifiable {
 struct TMDBResponse<T: Codable>: Codable { let results: [T] }
 
 struct MovieResult: Codable, Identifiable {
-    let id: Int; let title: String; let originalTitle: String?; let releaseDate: String?
-    enum CodingKeys: String, CodingKey { case id, title; case originalTitle = "original_title"; case releaseDate = "release_date" }
+    let id: Int; let title: String; let originalTitle: String?; let releaseDate: String?; var posterPath: String? = nil
+    enum CodingKeys: String, CodingKey { case id, title; case originalTitle = "original_title"; case releaseDate = "release_date"; case posterPath = "poster_path" }
     var year: String { guard let d = releaseDate, d.count >= 4 else { return "N/A" }; return String(d.prefix(4)) }
     var candidate: DisambiguationCandidate {
-        DisambiguationCandidate(id: "\(id)", title: title, originalTitle: originalTitle ?? title, year: year, date: releaseDate ?? "")
+        DisambiguationCandidate(id: "\(id)", title: title, originalTitle: originalTitle ?? title, year: year, date: releaseDate ?? "",
+                                posterURL: tmdbPosterURL(posterPath))
     }
 }
 
 struct TVResult: Codable, Identifiable {
-    let id: Int; let name: String; let originalName: String?; let firstAirDate: String?
-    enum CodingKeys: String, CodingKey { case id, name; case originalName = "original_name"; case firstAirDate = "first_air_date" }
+    let id: Int; let name: String; let originalName: String?; let firstAirDate: String?; var posterPath: String? = nil
+    enum CodingKeys: String, CodingKey { case id, name; case originalName = "original_name"; case firstAirDate = "first_air_date"; case posterPath = "poster_path" }
     var year: String { guard let d = firstAirDate, d.count >= 4 else { return "N/A" }; return String(d.prefix(4)) }
     var candidate: DisambiguationCandidate {
-        DisambiguationCandidate(id: "\(id)", title: name, originalTitle: originalName ?? name, year: year, date: firstAirDate ?? "")
+        DisambiguationCandidate(id: "\(id)", title: name, originalTitle: originalName ?? name, year: year, date: firstAirDate ?? "",
+                                posterURL: tmdbPosterURL(posterPath))
     }
 }
 

@@ -68,38 +68,74 @@ private struct LanguagePicker: View {
 
 // MARK: - Settings Sheet
 
-struct SettingsSheetView: View {
-    @ObservedObject var vm: RenamyViewModel
-    @Environment(\.dismiss) var dismiss
+/// Settings window with tabs, like the other apps (mockup C).
+struct SettingsView: View {
+    @EnvironmentObject var vm: RenamyViewModel
 
     var body: some View {
-        VStack {
-            Text(vm.t("settings_title")).font(.title2).padding()
+        TabView {
             Form {
                 Section {
-                    SecureField("API Key TMDB", text: $vm.apiKey)
-                } header: { Text(vm.t("sec_api")) } footer: {
+                    SecureField(vm.t("lbl_api_key"), text: $vm.apiKey)
+                } header: { Text("TMDB") } footer: {
                     Text(vm.t("lbl_api_hint")).font(.caption).foregroundStyle(.secondary)
+                }
+                AnimeSettingsSection(vm: vm, mapping: vm.animeMapping)
+            }
+            .formStyle(.grouped)
+            .tabItem { Label(vm.t("tab_sources"), systemImage: "cloud") }
+
+            Form {
+                Section {
+                    Picker(vm.t("lbl_format"), selection: $vm.renameFormat) {
+                        ForEach(RenameFormat.allCases) { Text($0.label).tag($0) }
+                    }
+                } footer: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(vm.t("lbl_format_example")).font(.caption).foregroundStyle(.secondary)
+                        Text(example(isTV: false)).font(.caption.monospaced()).foregroundStyle(.secondary)
+                        Text(example(isTV: true)).font(.caption.monospaced()).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .formStyle(.grouped)
+            .tabItem { Label(vm.t("tab_names"), systemImage: "textformat") }
+
+            Form {
+                Section {
+                    Toggle(vm.t("lbl_subfolders"), isOn: $vm.includeSubfolders)
+                    Toggle(isOn: $vm.createSubfolders) {
+                        Text(vm.t("lbl_move"))
+                        Text(vm.t("lbl_move_hint")).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .formStyle(.grouped)
+            .tabItem { Label(vm.t("tab_folders"), systemImage: "folder") }
+
+            Form {
+                Section(vm.t("sec_appearance")) {
+                    ThemeSelectionView(selectedTheme: $vm.appTheme).padding(.vertical, 5)
                 }
                 Section(vm.t("sec_language")) {
                     LanguagePicker()
                 }
-                Section(vm.t("sec_appearance")) {
-                    ThemeSelectionView(selectedTheme: $vm.appTheme).padding(.vertical, 5)
-                }
-                Section(vm.t("sec_format")) {
-                    Picker(vm.t("lbl_format"), selection: $vm.renameFormat) {
-                        ForEach(RenameFormat.allCases) { Text($0.label).tag($0) }
-                    }
-                }
-                Section(vm.t("sec_folders")) {
-                    Toggle(vm.t("lbl_subfolders"), isOn: $vm.includeSubfolders)
-                    Toggle(vm.t("lbl_move"), isOn: $vm.createSubfolders)
-                }
-                AnimeSettingsSection(vm: vm, mapping: vm.animeMapping)
-            }.padding()
-            Button(vm.t("btn_done")) { dismiss() }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction).padding()
-        }.frame(width: 460, height: 720)
+            }
+            .formStyle(.grouped)
+            .tabItem { Label(vm.t("tab_appearance"), systemImage: "circle.lefthalf.filled") }
+        }
+        .frame(width: 520, height: 470)
+        .preferredColorScheme(vm.appTheme.colorScheme)
+    }
+
+    /// Example names in the chosen format (open movie and a made-up series).
+    private func example(isTV: Bool) -> String {
+        let media = isTV
+            ? ResolvedMedia(title: "Show Name", year: "2015", tmdbID: "12345", isTV: true, season: "01", episode: "02")
+            : ResolvedMedia(title: "Big Buck Bunny", year: "2008", tmdbID: "10378", isTV: false, season: nil, episode: nil)
+        let name = Naming.fileName(media, format: vm.renameFormat)
+        guard isTV, vm.createSubfolders else { return name }
+        return Naming.seriesFolderName(media, format: vm.renameFormat) + "/Season 01/" + name
     }
 }
 

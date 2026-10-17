@@ -27,6 +27,7 @@ runFileNameParserTests()
 runNamingTests()
 runTMDBRequestTests()
 runAnimeTests()
+runGroupingTests()
 
 print("\n\(passed) passed, \(failed) failed, \(expectedFailures) known issues, \(unexpectedPasses) unexpected passes")
 exit(failed == 0 && unexpectedPasses == 0 ? 0 : 1)

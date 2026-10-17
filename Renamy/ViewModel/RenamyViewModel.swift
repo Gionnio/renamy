@@ -19,9 +19,15 @@ final class RenamyViewModel: ObservableObject {
     @Published var isScanning = false; @Published var isProcessing = false
     @Published var progress: Double = 0.0; @Published var etaText: String = ""
     @Published var isShowingRetryAlert = false; @Published var retrySearchName = ""
-    @Published var targetFileForManualSearch: MediaFile? = nil
+    /// File su cui agisce la ricerca manuale (un file o un gruppo intero); vuoto = i file da sistemare.
+    @Published var manualSearchFileIDs: [UUID] = []
     @Published var showConfirmationAlert = false
-    @Published var showSettingsSheet = false
+    // NEW: finestra a tre colonne
+    @Published var sidebarFilter: SidebarFilter? = .all
+    @Published var searchText = ""
+    /// Riga selezionata: id di un gruppo (`FileGroup.id`) o di un file (`"file:" + uuid`).
+    @Published var selection: String?
+    @Published var expandedGroups: Set<String> = []
 
     // FIX: @AppStorage dentro un ObservableObject non notifica la UI da solo:
     // senza willSet il cambio tema/lingua/formato non ridisegnava la finestra.
@@ -38,10 +44,12 @@ final class RenamyViewModel: ObservableObject {
     @AppStorage("animeUseTMDB")       var animeUseTMDB = true           { willSet { objectWillChange.send() } }
     @AppStorage("animeTitlesEnglish") var animeTitlesEnglish = true     { willSet { objectWillChange.send() } }
 
-    @Published var filterNonTrovati = false
     @Published var undoHistory: [RenameHistoryItem] = []
     @Published var ambiguousMatches: [AmbiguousMatch] = []
-    @Published var currentAmbiguity: AmbiguousMatch? = nil
+    /// Scelta da fare adesso: si apre nel pannello di destra.
+    @Published var currentAmbiguity: AmbiguousMatch? = nil {
+        didSet { if let amb = currentAmbiguity { selection = FileGroup.ambiguityID(amb); sidebarFilter = .all } }
+    }
     @Published var pendingProcessAfterDisambiguation = false
 
     private var fileObservers: [UUID: AnyCancellable] = [:]
@@ -142,7 +150,8 @@ final class RenamyViewModel: ObservableObject {
         isScanning = false; isProcessing = false; progress = 0; etaText = ""
         fileList.removeAll(); fileObservers.removeAll(); tmdb.clearCache(); anilist.clearCache(); anilistMedia.removeAll(); createdFolders.removeAll()
         ambiguousMatches.removeAll(); undoHistory.removeAll()
-        currentAmbiguity = nil; pendingProcessAfterDisambiguation = false; targetFileForManualSearch = nil
+        currentAmbiguity = nil; pendingProcessAfterDisambiguation = false; manualSearchFileIDs = []
+        selection = nil; expandedGroups.removeAll(); searchText = ""
         statusText = t("msg_cleaned")
     }
 
@@ -241,7 +250,8 @@ final class RenamyViewModel: ObservableObject {
     /// - Parameters: season, episode: numerazione da usare al posto di quella del nome (anime → TMDB)
     func applyCandidate(_ cand: DisambiguationCandidate, to file: MediaFile, season: String? = nil, episode: String? = nil) {
         file.tmdbID = cand.source == .tmdb ? cand.id : ""
-        file.resolvedTitle = cand.title; file.resolvedYear = cand.year
+        file.resolvedTitle = cand.title; file.resolvedYear = cand.year; file.resolvedOriginalTitle = cand.originalTitle
+        file.posterURL = cand.posterURL.flatMap(URL.init(string:))
         file.parsedSeason = season ?? file.recognizedSeason; file.parsedEpisode = episode ?? file.recognizedEpisode
         let name = buildFileName(for: file)
         file.generatedName = name          // prima di proposedName: vedi proposedNameEdited
@@ -316,8 +326,12 @@ final class RenamyViewModel: ObservableObject {
 
     // MARK: Manual search
 
-    func prepareManualSearch(for file: MediaFile) {
-        targetFileForManualSearch = file
+    func prepareManualSearch(for file: MediaFile) { prepareManualSearch(for: [file]) }
+
+    /// Ricerca manuale per un gruppo intero (es. tutti gli episodi di una serie).
+    func prepareManualSearch(for files: [MediaFile]) {
+        guard let file = files.first else { return }
+        manualSearchFileIDs = files.map(\.id)
         retrySearchName = file.resolvedTitle ?? file.recognizedTitle
         isShowingRetryAlert = true
     }
@@ -332,7 +346,10 @@ final class RenamyViewModel: ObservableObject {
     /// Ora agisce solo sui file problematici (quelli selezionati, o tutti se nessuno è selezionato).
     /// Per correggere un file già "Pronto" si usa il menu contestuale sulla riga.
     private func manualSearchTargets() -> [MediaFile] {
-        if let single = targetFileForManualSearch { return [single] }
+        if !manualSearchFileIDs.isEmpty {
+            let ids = Set(manualSearchFileIDs)
+            return fileList.filter { ids.contains($0.id) }
+        }
         let problems: [FileStatus] = [.nonTrovato, .erroreRete, .erroreRegex, .ambiguo]
         let problematic = fileList.filter { problems.contains($0.status) }
         let selected = problematic.filter(\.isSelected)
@@ -341,9 +358,9 @@ final class RenamyViewModel: ObservableObject {
 
     func retrySearchManual(name: String) {
         let q = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let single = targetFileForManualSearch
+        let single = manualSearchFileIDs.first
         let targets = manualSearchTargets()
-        targetFileForManualSearch = nil
+        manualSearchFileIDs = []
         guard !q.isEmpty else { return }
         guard !apiKey.isEmpty else { statusText = t("err_no_api"); return }
         guard !targets.isEmpty else { statusText = t("err_no_targets"); return }
@@ -368,7 +385,7 @@ final class RenamyViewModel: ObservableObject {
             if authFailed { statusText = t("err_api_invalid") }
             else { statusText = idNotFound ? t("err_id_not_found") : t("msg_done") }
             rebuildAmbiguities()
-            if let tgt = single { currentAmbiguity = ambiguousMatches.first { $0.fileIDs.contains(tgt.id) } }
+            if let tgt = single { currentAmbiguity = ambiguousMatches.first { $0.fileIDs.contains(tgt) } }
             else { currentAmbiguity = ambiguousMatches.first }
         }
     }
@@ -386,7 +403,7 @@ final class RenamyViewModel: ObservableObject {
         showConfirmationAlert = true
     }
 
-    private func filesToProcess() -> [MediaFile] {
+    func filesToProcess() -> [MediaFile] {
         fileList.filter {
             $0.isSelected && $0.status != .spostato && $0.status != .ambiguo
             && !sanitizeFileName($0.proposedName).isEmpty
@@ -408,7 +425,7 @@ final class RenamyViewModel: ObservableObject {
     }
 
     /// Cartella di destinazione (vedi Naming.destinationFolder).
-    private func destinationFolder(for file: MediaFile, newName: String, base: URL) -> URL {
+    func destinationFolder(for file: MediaFile, newName: String, base: URL) -> URL {
         Naming.destinationFolder(media: resolvedMedia(for: file), isTV: file.isTVShow,
                                  usesGeneratedName: newName == file.generatedName,
                                  newName: newName, format: renameFormat, base: base)
@@ -525,18 +542,27 @@ final class RenamyViewModel: ObservableObject {
 
     func resolveAmbiguity(selected: DisambiguationCandidate) {
         guard let current = currentAmbiguity else { return }
-        let files = fileList.filter { current.fileIDs.contains($0.id) }
-        // NEW: una scelta AniList passa dalla mappa (rete): si chiude il foglio e si prosegue a lavoro finito
+        resolve(current, with: selected)
+    }
+
+    /// Applica la scelta al gruppo e agli altri file spuntati in "Applica anche a".
+    func resolve(_ ambiguity: AmbiguousMatch, with selected: DisambiguationCandidate, alsoFor extra: Set<UUID> = []) {
+        let ids = Set(ambiguity.fileIDs).union(extra)
+        let files = fileList.filter { ids.contains($0.id) }
+        // NEW: una scelta AniList passa dalla mappa (rete): si prosegue a lavoro finito
         if selected.source == .anilist, let id = Int(selected.id), let media = anilistMedia[id] {
             currentAmbiguity = nil; statusText = t("msg_searching")
             Task {
                 for f in files { await applyAniList(media, to: f) }
                 statusText = authFailed ? t("err_api_invalid") : t("msg_search_done")
+                selection = files.first.map { groupID(containing: $0) }
                 continueAfterResolution()
             }
             return
         }
         for f in files { applyCandidate(selected, to: f) }
+        // Il gruppo ora è quello della serie o del film scelto
+        selection = files.first.map { groupID(containing: $0) }
         continueAfterResolution()
     }
 

@@ -10,6 +10,8 @@ import SwiftUI
 @main
 struct RenamyApp: App {
     @State private var aboutWindow: NSWindow?
+    /// Un solo stato condiviso tra finestra principale e Impostazioni.
+    @StateObject private var vm = RenamyViewModel()
     @AppStorage("appTheme") private var appTheme: AppTheme = .system
 
     init() {
@@ -27,22 +29,21 @@ struct RenamyApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            MainView()
+                .environmentObject(vm)
                 .preferredColorScheme(appTheme.colorScheme)
         }
+        .defaultSize(width: 1240, height: 760)
         .commands {
             CommandGroup(replacing: .appInfo) {
                 Button(Strings.get("menu_about")) {
                     openAboutWindow()
                 }
             }
-            
-            CommandGroup(replacing: .appSettings) {
-                Button(Strings.get("menu_settings")) {
-                    NotificationCenter.default.post(name: Notification.Name("OpenSettings"), object: nil)
-                }
-                .keyboardShortcut(",", modifiers: .command)
-            }
+        }
+
+        Settings {
+            SettingsView().environmentObject(vm)
         }
     }
 

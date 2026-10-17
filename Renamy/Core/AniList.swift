@@ -46,7 +46,7 @@ struct AniListMedia: Decodable, Equatable {
             date = String(format: "%04d-%02d-%02d", y, startDate?.month ?? 1, startDate?.day ?? 1)
         }
         return DisambiguationCandidate(id: String(id), title: shown, originalTitle: other, year: year, date: date,
-                                       source: .anilist, format: format)
+                                       source: .anilist, format: format, posterURL: coverImage?.medium)
     }
 }
 
