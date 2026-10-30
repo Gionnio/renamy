@@ -28,16 +28,19 @@ struct MainView: View {
             SidebarView()
                 .navigationSplitViewColumnWidth(min: 190, ideal: 210, max: 260)
         } content: {
+            // Azioni nella barra della colonna centrale: "Rinomina N file" resta sopra l'elenco su cui agisce
             LibraryColumn(isDropTargeted: isDropTargeted)
                 .navigationSplitViewColumnWidth(min: 420, ideal: 560)
+                .toolbar { toolbar }
         } detail: {
+            // La ricerca da sola sopra il pannello di destra: con il pulsante accanto non ci stava
+            // e il pulsante sbordava oltre la linea tra le colonne
             InspectorView()
                 .navigationSplitViewColumnWidth(min: 300, ideal: 340, max: 400)
+                .searchable(text: $vm.searchText, placement: .toolbar, prompt: Text(vm.t("search_prompt")))
         }
         .navigationTitle(vm.t("app_title"))
         .navigationSubtitle(subtitle)
-        .searchable(text: $vm.searchText, placement: .toolbar, prompt: Text(vm.t("search_prompt")))
-        .toolbar { toolbar }
         .onDrop(of: [UTType.fileURL, UTType.folder], isTargeted: $isDropTargeted) { providers in
             vm.handleDrop(providers: providers)
             return true
@@ -76,14 +79,6 @@ struct MainView: View {
             Button { vm.resetAll() } label: { Label(vm.t("tip_reset"), systemImage: "trash") }
                 .disabled(vm.isScanning || vm.isProcessing || vm.fileList.isEmpty).help(vm.t("tip_reset"))
         }
-        ToolbarItem(placement: .primaryAction) {
-            Button { vm.requestProcessing() } label: {
-                Text(String(format: vm.t("btn_rename_n"), vm.filesToProcess().count)).padding(.horizontal, 4)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(vm.filesToProcess().isEmpty || vm.isScanning || vm.isProcessing)
-            .help(vm.t("tip_process"))
-        }
     }
 
     private func openFolder() {
@@ -117,9 +112,18 @@ struct StatusBar: View {
             }
             Spacer()
             Text(sources).foregroundStyle(.secondary)
+            // Pulsante principale in fondo a destra: in alto, accanto alla ricerca, sbordava oltre
+            // la linea tra le colonne quando il pannello di destra era stretto
+            Button { vm.requestProcessing() } label: {
+                Text(String(format: vm.t("btn_rename_n"), vm.filesToProcess().count)).padding(.horizontal, 4)
+            }
+            .font(.body)
+            .buttonStyle(.borderedProminent)
+            .disabled(vm.filesToProcess().isEmpty || vm.isScanning || vm.isProcessing)
+            .help(vm.t("tip_process"))
         }
         .font(.caption)
-        .padding(.horizontal, 12).frame(height: 28)
+        .padding(.horizontal, 12).frame(height: 44)
         .background(Color(nsColor: .windowBackgroundColor))
         .overlay(alignment: .top) { Divider() }
     }
