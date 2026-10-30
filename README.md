@@ -32,7 +32,7 @@
 
 <img width="1000" alt="Choosing between matching titles" src="docs/choice.png" />
 
-<p align="center"><img width="560" alt="Renamy Settings" src="docs/settings.png" /></p>
+<p align="center"><img width="420" alt="Renamy Settings: sources" src="docs/settings.png" /> <img width="420" alt="Renamy Settings: names" src="docs/settings-names.png" /></p>
 
 ## 🚀 Requirements
 - macOS 14.6 (Sonoma) or later.
