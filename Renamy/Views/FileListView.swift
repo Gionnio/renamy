@@ -48,7 +48,6 @@ struct GroupedFileList: View {
             }
             .font(.caption)
             .padding(.horizontal, 12).padding(.vertical, 6)
-            Divider()
             if groups.isEmpty {
                 Text(vm.t("list_empty_filter")).foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -63,6 +62,7 @@ struct GroupedFileList: View {
                     }
                 }
                 .listStyle(.inset)
+                .modifier(SoftScrollEdges())
             }
         }
     }

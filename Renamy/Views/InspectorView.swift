@@ -31,6 +31,7 @@ struct InspectorView: View {
             }
         }
         .background(Color(nsColor: .controlBackgroundColor))
+        .modifier(SoftScrollEdges())
     }
 }
 

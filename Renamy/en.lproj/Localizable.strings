@@ -67,7 +67,7 @@
 "ctx_reveal" = "Show in Finder";
 "tip_open" = "Open folder";
 "tip_scan" = "Scan (New Only)";
-"tip_reset" = "Reset";
+"tip_reset" = "Clear the list (files are not touched)";
 "tip_undo" = "Undo";
 "tip_tmdb" = "Manual Search";
 "tip_process" = "Apply";

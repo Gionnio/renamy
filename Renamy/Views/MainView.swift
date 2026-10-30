@@ -68,13 +68,15 @@ struct MainView: View {
                 .disabled(vm.selectedFolderURL == nil || vm.isScanning || vm.isProcessing).help(vm.t("tip_scan"))
             Button { vm.undoLastOperation() } label: { Label(vm.t("tip_undo"), systemImage: "arrow.uturn.backward") }
                 .disabled(vm.undoHistory.isEmpty || vm.isProcessing).help(vm.t("tip_undo"))
-        }
-        ToolbarItemGroup(placement: .primaryAction) {
+            // Tutte le azioni nello stesso gruppo e con simboli semplici: a destra restano solo
+            // il pulsante principale e la ricerca, così niente sta a cavallo della linea tra le colonne
             Button { vm.manualSearchFileIDs = []; vm.retrySearchName = ""; vm.isShowingRetryAlert = true } label: {
-                Label(vm.t("btn_tmdb"), systemImage: "magnifyingglass.circle")
+                Label(vm.t("btn_tmdb"), systemImage: "text.magnifyingglass")
             }.disabled(vm.isScanning || vm.isProcessing || vm.fileList.isEmpty).help(vm.t("tip_tmdb"))
-            Button { vm.resetAll() } label: { Label(vm.t("tip_reset"), systemImage: "xmark.circle") }
+            Button { vm.resetAll() } label: { Label(vm.t("tip_reset"), systemImage: "trash") }
                 .disabled(vm.isScanning || vm.isProcessing || vm.fileList.isEmpty).help(vm.t("tip_reset"))
+        }
+        ToolbarItem(placement: .primaryAction) {
             Button { vm.requestProcessing() } label: {
                 Text(String(format: vm.t("btn_rename_n"), vm.filesToProcess().count)).padding(.horizontal, 4)
             }

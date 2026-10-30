@@ -67,7 +67,7 @@
 "ctx_reveal" = "Mostra nel Finder";
 "tip_open" = "Apri cartella";
 "tip_scan" = "Scansiona (Solo Nuovi)";
-"tip_reset" = "Reset";
+"tip_reset" = "Svuota l'elenco (i file non vengono toccati)";
 "tip_undo" = "Annulla";
 "tip_tmdb" = "Cerca manuale";
 "tip_process" = "Applica";
